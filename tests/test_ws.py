@@ -1,5 +1,5 @@
 # tests/test_ws.py
-import os, json, tempfile
+import json
 from fastapi.testclient import TestClient
 import pytest
 
