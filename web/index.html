@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 辅导员</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>AI 辅导员</h1>
+  <div class="header-right">
+    <span id="status-dot" class="dot"></span>
+    <span id="status-text">检测中…</span>
+    <button id="reindex">重新入索引</button>
+  </div>
+</header>
+<main id="messages"></main>
+<div id="citations-panel" hidden>
+  <h3>参考资料</h3>
+  <ol id="citations-list"></ol>
+</div>
+<footer>
+  <div class="counter"><span id="char-count">0</span>/4000</div>
+  <textarea id="input" rows="2" placeholder="请输入你的问题…"></textarea>
+  <button id="send">发送</button>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
