@@ -52,6 +52,16 @@ def test_grade_node_invalid_json_defaults_false():
     assert out["is_relevant"] is False
 
 
+def test_grade_node_string_false_is_not_truthy():
+    """Regression: "false" string must NOT be treated as truthy bool."""
+    llm = FakeChat('{"relevant": "false", "reason": "无关"}')
+    state: AgentState = {"messages": [HumanMessage(content="问题")],
+                         "retrieved_docs": [Document(page_content="x", metadata={"source":"a.pdf"})],
+                         "is_relevant": True, "citations": []}
+    out = make_grade_node(llm)(state)
+    assert out["is_relevant"] is False
+
+
 def test_generate_node_appends_assistant_message_and_citations():
     llm = FakeChat("根据文档 [1]，需要 16 分。")
     docs = [Document(page_content="实践学分不少于 16 分", metadata={"source":"plan.pdf","page":3})]

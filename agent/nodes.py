@@ -56,7 +56,7 @@ def make_grade_node(llm):
             return {"is_relevant": False}
         try:
             data = json.loads(m.group(0))
-            return {"is_relevant": bool(data.get("relevant", False))}
+            return {"is_relevant": data.get("relevant") is True}
         except Exception:
             return {"is_relevant": False}
     return _node
@@ -65,7 +65,6 @@ def make_grade_node(llm):
 def make_generate_node(llm):
     def _node(state: AgentState) -> dict:
         docs = state["retrieved_docs"]
-        full_text = "\n\n".join((d.page_content or "") for d in docs)
         snippets = [d.page_content[:300] for d in docs]
         formatted = format_docs_full(docs, snippets)
         history = _history_text(state)

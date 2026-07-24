@@ -26,7 +26,7 @@ GENERATE_PROMPT = """参考资料：
 
 学生问题：{question}
 
-请用中文生成回答（含引用编号）。引用编号必须出现在句末。"""
+请使用与学生提问相同的语言生成回答（含引用编号）。引用编号必须出现在句末。"""
 
 
 def format_docs_full(docs, snippets: list[str]) -> str:
