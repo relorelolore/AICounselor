@@ -689,12 +689,18 @@ const modalCtl = {
     this._inputEl.hidden = kind !== "prompt";
     this._inputEl.value = defaultValue;
     this._inputEl.placeholder = placeholder || "";
+    // "choose" kind renders only the option buttons + one cancel — the
+    // default confirm/cancel pair would duplicate cancel and have nothing
+    // meaningful to do as confirm.
+    const showDefaultConfirm = kind !== "choose";
+    this._confirmBtn.hidden = !showDefaultConfirm;
     this._confirmBtn.textContent = confirmLabel;
+    this._confirmBtn.classList.toggle("danger", !!danger && showDefaultConfirm);
+    this._confirmBtn.classList.toggle("primary", !danger && showDefaultConfirm);
     this._cancelBtn.textContent = cancelLabel;
-    this._confirmBtn.classList.toggle("danger", !!danger);
-    this._confirmBtn.classList.toggle("primary", !danger);
-    // Render any extra option buttons (for "choose" kind) between cancel & confirm.
-    this._actionsEl.replaceChildren(this._cancelBtn, this._confirmBtn);
+    // Reset and rebuild the action row.
+    this._actionsEl.replaceChildren(this._cancelBtn);
+    if (showDefaultConfirm) this._actionsEl.appendChild(this._confirmBtn);
     if (kind === "choose" && options.length > 0) {
       const extra = document.createDocumentFragment();
       options.forEach((opt, i) => {
@@ -743,8 +749,6 @@ async function openContextMenu(id) {
       { label: "重命名", value: "rename" },
       { label: "删除",   value: "delete", danger: true },
     ],
-    confirmLabel: "取消",
-    cancelLabel: "取消",
   });
   if (choice === "rename") {
     const t = await modalCtl.prompt({

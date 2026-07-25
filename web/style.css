@@ -428,7 +428,7 @@ body.sidebar-collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; 
 /* === Modal === */
 #modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(15, 23, 42, .45);
+  background: rgba(15, 23, 42, .55);
   z-index: 300;
   animation: fade-in .12s ease-out;
 }
@@ -437,17 +437,18 @@ body.sidebar-collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; 
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(420px, calc(100vw - 32px));
   background: var(--c-bg);
+  border: 1px solid var(--c-border-strong);
   border-radius: var(--radius-lg);
-  box-shadow: 0 12px 40px rgba(15, 23, 42, .20);
+  box-shadow: 0 16px 48px rgba(15, 23, 42, .35), 0 2px 8px rgba(15, 23, 42, .12);
   z-index: 301;
-  padding: 24px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   animation: modal-in .15s ease-out;
 }
 @keyframes modal-in { from { opacity: 0; transform: translate(-50%, -48%) scale(.96); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
-#modal h3 { margin: 0; font-size: 16px; font-weight: 600; }
+#modal h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--c-text); }
 #modal p { margin: 0; font-size: 14px; color: var(--c-text-soft); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 #modal-input {
   font: inherit; font-size: 14px;
@@ -463,7 +464,9 @@ body.sidebar-collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; 
 #modal-input:focus { border-color: var(--c-primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, .18); }
 .modal-actions {
   display: flex; justify-content: flex-end; gap: 8px;
-  margin-top: 4px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--c-border);
 }
 .modal-actions button {
   padding: 8px 16px;
