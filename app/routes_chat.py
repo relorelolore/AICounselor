@@ -4,12 +4,13 @@ import json
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from .schemas import ErrorEvent
 from agent.graph import build_graph
 from llm.client import get_llm
+from rag.citations import to_citations
 from rag.retriever import get_retriever
 from storage.paths import CHECKPOINT_DB
 
@@ -23,6 +24,24 @@ def _validate_session_id(s: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def _extract_citations(messages) -> list[dict]:
+    """Walk the final state messages and collect citations from every
+    ``search_documents`` ToolMessage artifact. Deduplicates by
+    ``(filename, page)`` keeping the first occurrence.
+    """
+    seen: set[tuple[str, int]] = set()
+    out: list[dict] = []
+    for m in messages:
+        if isinstance(m, ToolMessage) and m.name == "search_documents":
+            docs = m.artifact or []
+            for cite in to_citations(docs):
+                key = (cite["filename"], cite["page"])
+                if key not in seen:
+                    seen.add(key)
+                    out.append(cite)
+    return out
 
 
 @router.websocket("/ws/chat")
@@ -70,14 +89,18 @@ async def chat(ws: WebSocket) -> None:
                         await ws.send_text(json.dumps(
                             {"event": "token", "data": ai_content}, ensure_ascii=False))
 
-                citations = final_state.get("citations", []) or []
+                citations = _extract_citations(final_state["messages"])
                 if citations:
                     await ws.send_text(json.dumps(
                         {"event": "citation", "data": citations}, ensure_ascii=False))
 
-                finish_reason = "no_doc" if not final_state.get("is_relevant") else "stop"
+                # ReAct agent: if the model decided to call the search tool it
+                # ends up as a ToolMessage (handled above for citations); if it
+                # answered directly (greeting / meta / clarification) it never
+                # produced a ToolMessage. Both cases are "stop" — the old
+                # "no_doc" finish reason no longer applies.
                 await ws.send_text(json.dumps(
-                    {"event": "done", "data": {"finish_reason": finish_reason}},
+                    {"event": "done", "data": {"finish_reason": "stop"}},
                     ensure_ascii=False))
             except WebSocketDisconnect:
                 return
