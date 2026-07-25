@@ -43,6 +43,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `storage/paths.py` 是所有磁盘路径的单一来源；不要散落 hardcode。
 
+## 前端架构（`web/`）
+
+- 纯 vanilla JS（`web/index.html` + `web/style.css` + `web/app.js`），无 npm / 无构建步骤。
+- 所有会话状态存在 `localStorage["counselor:state"]`，schema 见 spec §2；后端无状态，多轮历史由前端每次 WS 请求随 `history` 字段发送。
+- ChatGPT 风格侧边栏：可折叠、分组（今天 / 昨天 / 本周 / 更早），支持新建 / 重命名 / 删除 / 清空全部会话。
+- 修改 `app.js` 时记得 bump `index.html` 里 `<script src="app.js?v=N">` 的版本号（`?v=N` 单调递增；`tests/test_api.py::test_frontend_cache_bust_is_vN` 会强制此约束）。
+
 ## LangGraph Agent（`agent/graph.py`）
 
 ```
@@ -61,7 +68,7 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 - 全部测试在 `tests/`，**无 `__init__.py`**（pytest rootdir 自动发现）。
 - `tests/conftest.py` 提供两个 autouse fixture：`_reset_llm_config`（每次前 `importlib.reload(llm.config)`）和 `_maybe_skip_embedding_tests`（`OFFLINE=1` 时跳过 `chroma_roundtrip` 测试，避免下载 bge-m3）。
 - `tests/test_tools.py` 导出 `FakeRetriever`；`tests/test_graph.py` 内的 `RotatingFakeChat`（继承 `BaseChatModel`，`bind_tools` 返回 `self`）用于模拟 ReAct 多轮响应（脚本化的 `AIMessage`/`str` 序列，含 `tool_calls`）。两者配合即可完整驱动 ReAct 流程，无需 llama.cpp。
-- 当前基线：`OFFLINE=1 uv run --extra dev pytest` → **57 passed, 2 skipped**（live llama.cpp + bge-m3 roundtrip），覆盖 `test_tools.py`（9 个）+ `test_graph.py`（3 个 ReAct 场景）+ `test_citations.py` + `test_chat_history.py`（7 个）+ `test_api.py`（frontend assertions）。
+- 当前基线：`OFFLINE=1 uv run --extra dev pytest` → **57 passed, 2 skipped**（live llama.cpp + bge-m3 roundtrip），覆盖 `test_tools.py`（9 个）+ `test_graph.py`（3 个 ReAct 场景）+ `test_citations.py` + `test_chat_history.py`（8 个）+ `test_api.py`（frontend assertions）。
 - **不在** brief / fixture 文件夹下加 `tests/__init__.py`。
 - **不要**用 `python -m pytest` / `pytest` — 必须 `uv run --extra dev pytest` 才能解析 `.venv/`。
 
