@@ -278,16 +278,17 @@ const renderer = {
     emptyEl.hidden = true;
     const frag = document.createDocumentFragment();
     const tpl = $("#message-template");
-    for (const m of chat.messages) {
+    for (const [idx, m] of chat.messages.entries()) {
       const node = tpl.content.firstElementChild.cloneNode(true);
-      this._fillMessage(node, m);
+      this._fillMessage(node, m, idx);
       frag.appendChild(node);
     }
     msgsEl.replaceChildren(frag);
     msgsEl.scrollTop = msgsEl.scrollHeight;
   },
-  _fillMessage(node, m) {
+  _fillMessage(node, m, msgIdx) {
     node.classList.add(m.role);
+    node.dataset.msgIdx = String(msgIdx);
     const content = $(".msg-content", node);
     if (m.role === "assistant") content.innerHTML = md(m.content || "");
     else content.textContent = m.content || "";
@@ -309,6 +310,7 @@ const renderer = {
     const node = tpl.content.firstElementChild.cloneNode(true);
     node.classList.add("assistant", "thinking");
     node.dataset.live = "1";
+    node.dataset.liveMsg = "1";
     $(".msg-content", node).textContent = "";
     msgsEl.appendChild(node);
     msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -331,10 +333,12 @@ const renderer = {
       },
       finish: () => {
         node.classList.remove("thinking");
+        delete node.dataset.live;
         const live = $$("[data-live='1']", node); live.forEach((el) => delete el.dataset.live);
       },
       showError: (msg) => {
         node.classList.remove("thinking"); node.classList.add("error");
+        delete node.dataset.live;
         $(".msg-content", node).textContent = "（出错了）" + msg;
         const live = $$("[data-live='1']", node); live.forEach((el) => delete el.dataset.live);
       },
@@ -345,6 +349,8 @@ const renderer = {
 // ============================================================================
 // Chat actions
 // ============================================================================
+let _liveCitationsForActiveSend = null;
+let currentLive = null;
 const chatActions = {
   create() {
     store.mutate((s) => {
@@ -380,9 +386,17 @@ const chatActions = {
     const t = String(text || "").trim();
     if (!t || t.length > MAX_MESSAGE_CHARS) return;
     const chat = store.active(); if (!chat) return;
+    const targetChatId = chat.id;
+    // A new send supersedes any still-streaming response from the previous send.
+    if (currentLive) {
+      currentLive.showError("（已取消）");
+      currentLive = null;
+      _liveCitationsForActiveSend = null;
+    }
     // Push user message + auto-title if needed.
     store.mutate((s) => {
-      const c = s.chats.find((x) => x.id === s.activeId);
+      const c = s.chats.find((x) => x.id === targetChatId);
+      if (!c) return;
       c.messages.push({ role: "user", content: t, ts: Date.now() });
       c.updatedAt = Date.now();
       if (c.title === "新会话") c.title = autoTitle(t);
@@ -393,20 +407,35 @@ const chatActions = {
       .filter((m) => m.role !== "tool")
       .map((m) => ({ role: m.role, content: m.content || "" }));
     const live = renderer.appendLiveBubble();
+    currentLive = live;
+    _liveCitationsForActiveSend = null;
     let buffer = ""; let cites = [];
     wsClient.connect(history, {
-      onToken: (chunk) => { buffer += chunk; live.setToken(buffer); },
-      onCitation: (c) => { cites = c; live.setCitations(c); },
+      onToken: (chunk) => {
+        if (currentLive !== live) return;
+        buffer += chunk; live.setToken(buffer);
+      },
+      onCitation: (c) => {
+        if (currentLive !== live) return;
+        cites = c; _liveCitationsForActiveSend = c; live.setCitations(c);
+      },
       onDone: () => {
+        if (currentLive !== live) return;
         live.finish();
+        currentLive = null;
+        _liveCitationsForActiveSend = null;
         store.mutate((s) => {
-          const c = s.chats.find((x) => x.id === s.activeId);
+          const c = s.chats.find((x) => x.id === targetChatId);
+          if (!c) return;
           c.messages.push({ role: "assistant", content: buffer, citations: cites, ts: Date.now() });
           c.updatedAt = Date.now();
         });
       },
       onError: (msg) => {
+        if (currentLive !== live) return;
         live.showError(msg);
+        currentLive = null;
+        _liveCitationsForActiveSend = null;
         // Don't push the assistant message — user can retry.
       },
     });
@@ -538,15 +567,18 @@ const drawerCtl = {
       const btn = e.target.closest(".msg-cites button[data-cite-idx]"); if (!btn) return;
       const idx = Number(btn.dataset.citeIdx);
       const chat = store.active();
-      // Find the message that contains this button (rendered or live).
-      let m = chat?.messages.find((x) => x.role === "assistant" && Array.isArray(x.citations) && x.citations[idx]);
-      if (!m) {
-        const liveNode = document.querySelector(".msg.assistant.thinking, .msg.assistant");
-        const liveCites = liveNode ? $$(".msg-cites button[data-cite-idx]", liveNode) : [];
-        const liveIdx = liveCites.indexOf(btn);
-        if (liveIdx >= 0) m = _liveCitations[liveIdx] && { citations: _liveCitations };
+      const msgNode = btn.closest(".msg");
+      let m = null;
+      if (msgNode?.dataset.liveMsg === "1") {
+        if (Array.isArray(_liveCitationsForActiveSend)) m = { citations: _liveCitationsForActiveSend };
+      } else {
+        const msgIdx = Number(msgNode?.dataset.msgIdx);
+        if (Number.isInteger(msgIdx) && msgIdx >= 0) {
+          const candidate = chat?.messages[msgIdx];
+          if (candidate?.role === "assistant") m = candidate;
+        }
       }
-      if (!m || !m.citations || !m.citations[idx]) return;
+      if (!m || !Array.isArray(m.citations) || !m.citations[idx]) return;
       const c = m.citations[idx];
       body.replaceChildren();
       const card = document.createElement("div");
@@ -558,8 +590,6 @@ const drawerCtl = {
     });
   },
 };
-// Track live citation array so drawer can resolve before store commit.
-const _liveCitations = [];
 
 // Empty state new button
 const emptyCtl = {

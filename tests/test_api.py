@@ -28,12 +28,12 @@ def test_frontend_health_requests_have_timeouts(client):
     assert 'fetchWithTimeout("/api/health", {}, 3000)' in app_js
     assert 'fetchWithTimeout("/api/ingest", {' in app_js
     assert "}, 30000);" in app_js
-    assert 'statusText.textContent = "连接超时"' in app_js
+    assert 'e.name === "AbortError" ? "连接超时"' in app_js
 
 
 def test_frontend_script_is_cache_busted(client):
     index_html = client.get("/").text
-    assert '<script src="app.js?v=5"></script>' in index_html
+    assert '<script src="app.js?v=6"></script>' in index_html
 
 
 def test_frontend_clears_citations_on_new_send(client):

@@ -25,6 +25,8 @@
   --font: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
 }
 
+[hidden] { display: none !important; }
+
 @media (prefers-color-scheme: dark) {
   /* Dark mode reserved for v2 — variables are placeholders only */
   :root {
