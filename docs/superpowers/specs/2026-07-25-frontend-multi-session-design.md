@@ -135,7 +135,7 @@ function autoTitle(text) {
 
 新引用过滤算法：
 ```python
-def _extract_citations_for_current_turn(messages):
+def _extract_current_turn_citations(messages):
     last_human_idx = max(
         (i for i, m in enumerate(messages) if isinstance(m, HumanMessage)),
         default=-1,

@@ -20,8 +20,8 @@ router = APIRouter()
 
 # Per-history-item content cap (chars). Combined total cap is enforced separately.
 _MAX_ITEM_CHARS = 4000
-# Combined history content cap.
-_MAX_HISTORY_CHARS = 4000 * 20  # 80 000 chars; ~20 turns of long messages
+# Combined history content cap (four maximum-length items).
+_MAX_HISTORY_CHARS = 4000 * 4  # 16 000 chars
 
 
 _VALID_ROLES = {"user", "assistant"}
@@ -69,7 +69,7 @@ def _history_to_messages(history: list[dict]) -> list[BaseMessage]:
     return out
 
 
-def _extract_citations(messages: list[BaseMessage]) -> list[dict]:
+def _extract_current_turn_citations(messages: list[BaseMessage]) -> list[dict]:
     """Citations from search_documents ToolMessages produced AFTER the
     last HumanMessage in the conversation.
 
@@ -129,7 +129,7 @@ async def chat(ws: WebSocket) -> None:
                     await ws.send_text(json.dumps(
                         {"event": "token", "data": ai_content}, ensure_ascii=False))
 
-            citations = _extract_citations(final_state["messages"])
+            citations = _extract_current_turn_citations(final_state["messages"])
             if citations:
                 await ws.send_text(json.dumps(
                     {"event": "citation", "data": citations}, ensure_ascii=False))

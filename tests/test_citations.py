@@ -165,7 +165,7 @@ async def test_citations_after_checkpointer_round_trip():
 async def test_citations_do_not_leak_across_turns():
     """Regression: 第二轮（不调工具）的 citations 不能包含第一轮的引用。
 
-    `routes_chat.py` 走 `_extract_citations(final_state["messages"])`，而
+    `routes_chat.py` 走 `_extract_current_turn_citations(final_state["messages"])`，而
     `final_state["messages"]` 包含整个 thread 的持久化历史 —— 如果不过滤，
     第一轮的 ToolMessage citations 会被原样带回，导致前端「参考资料」面板
     累积。修复：用 `aget_state` 拿到旧消息 ID，只取本轮新增消息作为来源。
@@ -185,10 +185,10 @@ async def test_citations_do_not_leak_across_turns():
 
     def _cites_from(messages, prior_ids):
         """Mirror `routes_chat.py` post-fix logic."""
-        from app.routes_chat import _extract_citations
+        from app.routes_chat import _extract_current_turn_citations
         new = [m for m in messages
                if getattr(m, "id", None) and m.id not in prior_ids]
-        return _extract_citations(new)
+        return _extract_current_turn_citations(new)
 
     with tempfile.TemporaryDirectory() as tmp:
         ckpt = os.path.join(tmp, "ckpt.db")

@@ -86,7 +86,7 @@ def test_unknown_role_rejected(client):
     assert "unknown role" in events[0]["data"]
 
 
-def test_total_history_too_long_rejected(client):
+def test_per_item_history_too_long_rejected(client):
     big = "x" * 4001
     events = _connect(client, {
         "session_id": "00000000-0000-4000-8000-000000000006",
@@ -94,6 +94,23 @@ def test_total_history_too_long_rejected(client):
     })
     assert events[0]["event"] == "error"
     assert "too long" in events[0]["data"]
+
+
+def test_total_history_chars_rejected(client):
+    # 41 * 400 = 16,400 total; every item remains below the 4,000-char cap.
+    history = [
+        {
+            "role": "user" if i % 2 == 0 else "assistant",
+            "content": "x" * 400,
+        }
+        for i in range(41)
+    ]
+    events = _connect(client, {
+        "session_id": "00000000-0000-4000-8000-000000000007",
+        "history": history,
+    })
+    assert events[0]["event"] == "error"
+    assert "history too long" in events[0]["data"]
 
 
 def test_invalid_session_id_rejected(client):
