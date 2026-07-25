@@ -61,7 +61,7 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 - 全部测试在 `tests/`，**无 `__init__.py`**（pytest rootdir 自动发现）。
 - `tests/conftest.py` 提供两个 autouse fixture：`_reset_llm_config`（每次前 `importlib.reload(llm.config)`）和 `_maybe_skip_embedding_tests`（`OFFLINE=1` 时跳过 `chroma_roundtrip` 测试，避免下载 bge-m3）。
 - `tests/test_tools.py` 导出 `FakeRetriever`；`tests/test_graph.py` 内的 `RotatingFakeChat`（继承 `BaseChatModel`，`bind_tools` 返回 `self`）用于模拟 ReAct 多轮响应（脚本化的 `AIMessage`/`str` 序列，含 `tool_calls`）。两者配合即可完整驱动 ReAct 流程，无需 llama.cpp。
-- 当前基线：`OFFLINE=1 uv run --extra dev pytest` → **39 passed, 2 skipped**（live llama.cpp + bge-m3 roundtrip），覆盖 `test_tools.py`（9 个）+ `test_graph.py`（3 个 ReAct 场景）= 12 个 Agent 单测。
+- 当前基线：`OFFLINE=1 uv run --extra dev pytest` → **57 passed, 2 skipped**（live llama.cpp + bge-m3 roundtrip），覆盖 `test_tools.py`（9 个）+ `test_graph.py`（3 个 ReAct 场景）+ `test_citations.py` + `test_chat_history.py`（7 个）+ `test_api.py`（frontend assertions）。
 - **不在** brief / fixture 文件夹下加 `tests/__init__.py`。
 - **不要**用 `python -m pytest` / `pytest` — 必须 `uv run --extra dev pytest` 才能解析 `.venv/`。
 
