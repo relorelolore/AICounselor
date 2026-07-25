@@ -90,11 +90,11 @@ def test_frontend_has_sidebar_and_toggle(client):
     assert 'id="new-chat-btn"' in html
 
 
-def test_frontend_cache_bust_is_v9(client):
+def test_frontend_cache_bust_is_v10(client):
     """app.js 必须带 cache-bust 参数（每次发布 bump 版本号）避免浏览器
-    缓存旧 JS。Sidebar 折叠修复 v=8→v=9。"""
+    缓存旧 JS。Collapsed sidebar 排空 v=9→v=10。"""
     html = client.get("/").text
-    assert '<script src="app.js?v=9"></script>' in html
+    assert '<script src="app.js?v=10"></script>' in html
 
 
 def test_frontend_has_inline_sidebar_toggle(client):

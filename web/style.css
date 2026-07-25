@@ -139,15 +139,19 @@ body.sidebar-collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; 
 .chat-item:hover .chat-menu-btn, .chat-item.active .chat-menu-btn { opacity: 1; }
 .chat-item .chat-menu-btn:hover { background: var(--c-bg-hover); color: var(--c-text); }
 
-/* Sidebar collapsed (desktop icon-only mode) */
+/* Sidebar collapsed (desktop icon-only mode) — column is empty
+   except for the ≡ toggle in the header. */
 .sidebar-collapsed .sidebar-brand { display: none; }
 .sidebar-collapsed #sidebar-toggle { margin: 0 auto; }
-.sidebar-collapsed .new-chat { display: none; }
-.sidebar-collapsed .chat-group-title { display: none; }
-.sidebar-collapsed .chat-item { justify-content: center; padding: 8px 4px; }
+.sidebar-collapsed .new-chat,
+.sidebar-collapsed #chat-list { display: none; }
+.sidebar-collapsed .sidebar-header { border-bottom-color: transparent; }
+.sidebar-collapsed .sidebar-brand,
+.sidebar-collapsed .chat-group-title,
+.sidebar-collapsed .chat-item,
 .sidebar-collapsed .chat-item .chat-text,
 .sidebar-collapsed .chat-item .chat-menu-btn { display: none; }
-.sidebar-collapsed .chat-item.active { border-left: none; }
+.sidebar-collapsed .chat-item.active { border-left: none; background: transparent; }
 /* === Main === */
 #main {
   display: grid;
@@ -496,7 +500,10 @@ body.sidebar-collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; 
   body:not(.sidebar-collapsed)::after {
     content: ""; position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 90;
   }
-  #sidebar-toggle-inline { display: inline-flex !important; }
+  /* Inline ≡ only when sidebar is hidden (collapsed); when overlay is open
+     the sidebar's own ≡ serves the same role, so the topbar button must hide
+     to avoid two stacked ≡ buttons. */
+  body.sidebar-collapsed #sidebar-toggle-inline { display: inline-flex; }
   .msg, .msg.user { max-width: 92%; }
   #topbar { padding: 0 12px; }
   #topbar h2 { font-size: 14px; max-width: 28ch; }
