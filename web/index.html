@@ -2,30 +2,66 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
 <title>AI 辅导员</title>
 <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-<header>
-  <h1>AI 辅导员</h1>
-  <div class="header-right">
-    <span id="status-dot" class="dot"></span>
-    <span id="status-text">检测中…</span>
-    <button id="reindex">重新入索引</button>
-    <button id="reset-session">重置会话</button>
-  </div>
-</header>
-<main id="messages"></main>
-<div id="citations-panel" hidden>
-  <h3>参考资料</h3>
-  <ol id="citations-list"></ol>
-</div>
-<footer>
-  <div class="counter"><span id="char-count">0</span>/4000</div>
-  <textarea id="input" rows="2" placeholder="请输入你的问题…"></textarea>
-  <button id="send">发送</button>
-</footer>
-<script src="app.js?v=4"></script>
+<body class="sidebar-open">
+<div id="toast" hidden><span id="toast-text"></span></div>
+<aside id="sidebar" aria-label="会话列表">
+  <header class="sidebar-header">
+    <button id="sidebar-toggle" type="button" aria-label="折叠侧边栏" title="折叠侧边栏">≡</button>
+    <span class="sidebar-brand">AI 辅导员</span>
+  </header>
+  <button id="new-chat-btn" type="button" class="new-chat">＋ 新会话</button>
+  <nav id="chat-list" aria-label="会话"></nav>
+</aside>
+<main id="main">
+  <header id="topbar">
+    <button id="sidebar-toggle-inline" type="button" aria-label="展开侧边栏" class="only-collapsed">≡</button>
+    <h2 id="chat-title" title="点击重命名" tabindex="0">新会话</h2>
+    <input id="chat-title-input" type="text" hidden />
+    <div class="topbar-spacer"></div>
+    <span class="status"><span id="status-dot" class="dot"></span><span id="status-text">检测中…</span></span>
+    <button id="reindex" type="button" title="重建文档索引">重建索引</button>
+    <div class="menu-wrap">
+      <button id="chat-actions-btn" type="button" aria-label="更多" title="更多">⋯</button>
+      <ul id="chat-actions-menu" hidden>
+        <li><button type="button" data-act="rename">重命名</button></li>
+        <li><button type="button" data-act="delete" class="danger">删除会话</button></li>
+        <li><button type="button" data-act="clear-all" class="danger">清空全部会话</button></li>
+      </ul>
+    </div>
+  </header>
+  <section id="messages" aria-live="polite"></section>
+  <section id="empty-state" hidden>
+    <div class="empty-inner">
+      <h1>AI 辅导员</h1>
+      <p>选个左侧会话继续聊，或者</p>
+      <button id="empty-state-new" type="button" class="primary">＋ 新建一个会话</button>
+    </div>
+  </section>
+  <footer id="composer">
+    <textarea id="input" rows="1" placeholder="请输入你的问题…" aria-label="输入问题"></textarea>
+    <div class="composer-actions">
+      <span id="char-count">0</span>/4000
+      <button id="send" type="button" class="primary" aria-label="发送">发送</button>
+      <button id="stop" type="button" hidden aria-label="停止">停止</button>
+    </div>
+  </footer>
+</main>
+<div id="drawer-backdrop" hidden></div>
+<aside id="drawer" hidden aria-label="参考资料">
+  <header><h3>参考资料</h3><button id="drawer-close" type="button" aria-label="关闭">×</button></header>
+  <div id="drawer-body"></div>
+</aside>
+<template id="message-template">
+  <article class="msg">
+    <div class="msg-content"></div>
+    <div class="msg-cites" hidden></div>
+  </article>
+</template>
+<script src="app.js?v=5"></script>
 </body>
 </html>
