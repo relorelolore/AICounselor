@@ -273,6 +273,7 @@ async def require_session(request: Request) -> dict:
 | GET | `/settings` | 读取全部生效配置（4 个 section） |
 | PUT | `/settings` | 更新一个或多个 section |
 | POST | `/reindex` | body `{force?: bool}`，触发 `build_index(force=…)` |
+| GET | `/reindex/last` | 返回上次重建结果（从 `kv.last_reindex` 读） |
 
 ### Pydantic schemas (`app/admin/schemas.py`)
 
@@ -281,7 +282,7 @@ async def require_session(request: Request) -> dict:
 - `MeResponse(username, created_at, last_login_at)`
 - `AccountPublic(id, username, created_at, updated_at, last_login_at, failed_attempts, locked)`
 - `AccountCreate(username, password)` —— 验证用户名 3-32 字符 `[a-z0-9_-]+`、密码 ≥ 6 字符
-- `AccountUpdate(...)` —— 用 `model_config = ConfigDict(extra='forbid')`；字段都可空，`old_password` 仅在改自己密码时校验
+- `AccountUpdate(...)` —— 用 `model_config = ConfigDict(extra='forbid')`；字段都可空：`old_password?`, `new_password?`, `unlock? (bool)`, `username?`。当 `current_user.id == target.id` 且提供 `new_password` 时 `old_password` 必填且校验；为目标他人时可省略 `old_password`；`unlock=true` 且 `current_user.id == target.id` → 服务端拒绝。
 - `LLMSettings(base_url, model_name, temperature, max_tokens, timeout, top_p, frequency_penalty, presence_penalty)`
 - `RetrievalSettings(k, chunk_size, chunk_overlap)`
 - `PathsSettings(documents_dir, data_dir, chroma_collection)`
