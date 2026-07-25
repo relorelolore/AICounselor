@@ -47,6 +47,7 @@ body {
   color: var(--c-text);
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: 1fr;
   overflow: hidden;
 }
 
@@ -139,6 +140,7 @@ body {
 #main {
   display: grid;
   grid-template-rows: var(--header-h) 1fr auto;
+  min-height: 0;
   min-width: 0;
   position: relative;
 }
