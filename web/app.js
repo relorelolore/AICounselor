@@ -1,5 +1,27 @@
 const $ = (sel) => document.querySelector(sel);
 
+function uuidv4() {
+  if (typeof crypto !== "undefined") {
+    if (typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    if (typeof crypto.getRandomValues === "function") {
+      const b = crypto.getRandomValues(new Uint8Array(16));
+      b[6] = (b[6] & 0x0f) | 0x40;   // version 4
+      b[8] = (b[8] & 0x3f) | 0x80;   // variant 10
+      const h = [];
+      for (let i = 0; i < 16; i++) h.push(b[i].toString(16).padStart(2, "0"));
+      return `${h.slice(0,4).join("")}-${h.slice(4,6).join("")}-${h.slice(6,8).join("")}-${h.slice(8,10).join("")}-${h.slice(10,16).join("")}`;
+    }
+  }
+  // Last-resort: non-cryptographic fallback (still passes uuidLooksValid regex)
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 const messagesEl = $("#messages");
 const inputEl = $("#input");
 const sendEl = $("#send");
@@ -13,14 +35,14 @@ const citationsList = $("#citations-list");
 
 let sessionId = localStorage.getItem("session_id");
 if (!sessionId) {
-  sessionId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
+  sessionId = uuidv4();
   localStorage.setItem("session_id", sessionId);
 }
 
 function uuidLooksValid(s) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }
-if (!uuidLooksValid(sessionId)) sessionId = crypto.randomUUID();
+if (!uuidLooksValid(sessionId)) sessionId = uuidv4();
 
 function appendMessage(role, text) {
   const div = document.createElement("div");

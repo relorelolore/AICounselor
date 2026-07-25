@@ -53,4 +53,4 @@ def test_frontend_health_requests_have_timeouts(client):
 
 def test_frontend_script_is_cache_busted(client):
     index_html = client.get("/").text
-    assert '<script src="app.js?v=2"></script>' in index_html
+    assert '<script src="app.js?v=3"></script>' in index_html
