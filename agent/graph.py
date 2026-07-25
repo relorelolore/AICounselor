@@ -1,40 +1,37 @@
 from __future__ import annotations
-from typing import Literal
-from langgraph.graph import END, START, StateGraph
 
-from .nodes import (
-    make_generate_node,
-    make_grade_node,
-    make_no_doc_node,
-    make_retrieve_node,
-)
-from .state import AgentState
+from langchain_core.messages import SystemMessage
+from langgraph.prebuilt import create_react_agent
+
+from .prompts import COUNSELOR_SYSTEM_PROMPT
+from .tools import build_search_documents_tool
 
 
 def build_graph(*, llm, retriever, checkpointer):
-    builder = StateGraph(AgentState)
+    """Create a ReAct agent that uses ``search_documents`` as its only tool.
 
-    retrieve = make_retrieve_node(retriever)
-    grade = make_grade_node(llm)
-    generate = make_generate_node(llm)
-    no_doc = make_no_doc_node(llm)
+    The agent is a ``langgraph.prebuilt.create_react_agent`` instance. The LLM
+    decides each turn whether to call the search tool or reply directly (handy
+    for greetings, meta-questions, and follow-ups about the conversation
+    history).
 
-    builder.add_node("retrieve", retrieve)
-    builder.add_node("grade", grade)
-    builder.add_node("generate", generate)
-    builder.add_node("no_doc", no_doc)
+    Returns a compiled graph. Callers invoke it via::
 
-    builder.add_edge(START, "retrieve")
-    builder.add_edge("retrieve", "grade")
+        graph.ainvoke({"messages": [HumanMessage(...)]},
+                      config={"configurable": {"thread_id": ...}})
 
-    def _route(state: AgentState) -> Literal["generate", "no_doc"]:
-        return "generate" if state.get("is_relevant") else "no_doc"
-
-    builder.add_conditional_edges("grade", _route, {
-        "generate": "generate",
-        "no_doc": "no_doc",
-    })
-    builder.add_edge("generate", END)
-    builder.add_edge("no_doc", END)
-
-    return builder.compile(checkpointer=checkpointer)
+    Note on the prompt argument: in langgraph 0.6.x this parameter is named
+    ``prompt`` (it was ``state_modifier`` in 0.2.x). The callable receives the
+    current state dict and must return the message list to send to the model —
+    we prepend a fresh ``SystemMessage`` each turn so the LLM always sees the
+    counselor persona instructions.
+    """
+    search_tool = build_search_documents_tool(retriever)
+    agent = create_react_agent(
+        model=llm,
+        tools=[search_tool],
+        prompt=lambda state: [SystemMessage(content=COUNSELOR_SYSTEM_PROMPT)]
+        + list(state["messages"]),
+        checkpointer=checkpointer,
+    )
+    return agent
