@@ -40,9 +40,19 @@ function appendCitations(cites) {
   citationsPanel.hidden = cites.length === 0;
 }
 
+async function fetchWithTimeout(url, options = {}, ms = 3000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function refreshHealth() {
   try {
-    const r = await fetch("/api/health");
+    const r = await fetchWithTimeout("/api/health", {}, 3000);
     const data = await r.json();
     const ok = data.status === "ok";
     statusDot.classList.toggle("ok", ok);
@@ -51,7 +61,11 @@ async function refreshHealth() {
   } catch (e) {
     statusDot.classList.remove("ok");
     statusDot.classList.add("degraded");
-    statusText.textContent = "无法连接后端";
+    if (e.name === "AbortError") {
+      statusText.textContent = "连接超时";
+    } else {
+      statusText.textContent = "无法连接后端";
+    }
   }
 }
 
@@ -59,11 +73,11 @@ async function reindex() {
   reindexEl.disabled = true;
   reindexEl.textContent = "处理中…";
   try {
-    const r = await fetch("/api/ingest", {
+    const r = await fetchWithTimeout("/api/ingest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ force: false }),
-    });
+    }, 30000);
     const data = await r.json();
     alert(`索引完成：新增 ${data.added} 个，跳过 ${data.skipped} 个，失败 ${data.failed.length} 个`);
     refreshHealth();

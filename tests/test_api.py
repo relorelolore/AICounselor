@@ -41,3 +41,16 @@ def test_ingest_runs_with_empty_corpus(client):
     assert "added" in data and "skipped" in data and "failed" in data
     assert data["added"] == 0
     assert data["skipped"] == 0
+
+
+def test_frontend_health_requests_have_timeouts(client):
+    app_js = client.get("/app.js").text
+    assert 'fetchWithTimeout("/api/health", {}, 3000)' in app_js
+    assert 'fetchWithTimeout("/api/ingest", {' in app_js
+    assert "}, 30000);" in app_js
+    assert 'statusText.textContent = "连接超时"' in app_js
+
+
+def test_frontend_script_is_cache_busted(client):
+    index_html = client.get("/").text
+    assert '<script src="app.js?v=2"></script>' in index_html
