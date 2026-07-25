@@ -1,22 +1,30 @@
 # app/routes_chat.py
 from __future__ import annotations
+
 import json
 import traceback
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 from .schemas import ErrorEvent
 from agent.graph import build_graph
 from llm.client import get_llm
 from rag.citations import to_citations
 from rag.retriever import get_retriever
-from storage.paths import CHECKPOINT_DB
 
 
 router = APIRouter()
+
+
+# Per-history-item content cap (chars). Combined total cap is enforced separately.
+_MAX_ITEM_CHARS = 4000
+# Combined history content cap.
+_MAX_HISTORY_CHARS = 4000 * 20  # 80 000 chars; ~20 turns of long messages
+
+
+_VALID_ROLES = {"user", "assistant"}
 
 
 def _validate_session_id(s: str) -> bool:
@@ -27,17 +35,56 @@ def _validate_session_id(s: str) -> bool:
         return False
 
 
-def _extract_citations(messages) -> list[dict]:
-    """Walk the final state messages and collect citations from every
-    ``search_documents`` ToolMessage artifact. Deduplicates by
-    ``(filename, page)`` keeping the first occurrence.
+def _validate_history(raw) -> tuple[list[dict] | None, str | None]:
+    """Return (normalized_history, error_message)."""
+    if not isinstance(raw, list) or len(raw) == 0:
+        return None, "empty history"
+    total = 0
+    for i, item in enumerate(raw):
+        if not isinstance(item, dict):
+            return None, f"history item {i} not an object"
+        role = item.get("role")
+        if role not in _VALID_ROLES:
+            return None, f"history item {i} has unknown role: {role!r}"
+        content = item.get("content", "")
+        if not isinstance(content, str):
+            return None, f"history item {i} content not a string"
+        if len(content) > _MAX_ITEM_CHARS:
+            return None, f"history item {i} content too long ({len(content)}>{_MAX_ITEM_CHARS})"
+        total += len(content)
+    if raw[-1]["role"] != "user":
+        return None, "history must end with user message"
+    if total > _MAX_HISTORY_CHARS:
+        return None, f"history too long ({total}>{_MAX_HISTORY_CHARS})"
+    return raw, None
+
+
+def _history_to_messages(history: list[dict]) -> list[BaseMessage]:
+    out: list[BaseMessage] = []
+    for item in history:
+        if item["role"] == "user":
+            out.append(HumanMessage(content=item["content"]))
+        else:
+            out.append(AIMessage(content=item["content"]))
+    return out
+
+
+def _extract_citations(messages: list[BaseMessage]) -> list[dict]:
+    """Citations from search_documents ToolMessages produced AFTER the
+    last HumanMessage in the conversation.
+
+    This prevents citations from prior turns leaking into the current
+    turn's response when the user keeps the same chat session.
     """
-    seen: set[tuple[str, int]] = set()
+    last_human_idx = -1
+    for i, m in enumerate(messages):
+        if isinstance(m, HumanMessage):
+            last_human_idx = i
     out: list[dict] = []
-    for m in messages:
+    seen: set[tuple[str, int]] = set()
+    for m in messages[last_human_idx + 1:]:
         if isinstance(m, ToolMessage) and m.name == "search_documents":
-            docs = m.artifact or []
-            for cite in to_citations(docs):
+            for cite in to_citations(m.artifact or []):
                 key = (cite["filename"], cite["page"])
                 if key not in seen:
                     seen.add(key)
@@ -52,92 +99,58 @@ async def chat(ws: WebSocket) -> None:
         raw = await ws.receive_text()
         payload = json.loads(raw)
         session_id = str(payload.get("session_id", ""))
-        message = str(payload.get("message", ""))
+        history = payload.get("history")
 
         if not _validate_session_id(session_id):
             await ws.send_text(ErrorEvent(data="invalid session_id").model_dump_json())
             await ws.close()
             return
 
-        if len(message) > 4000:
-            await ws.send_text(ErrorEvent(data="message too long (>4000 chars)").model_dump_json())
-            await ws.close()
-            return
-
-        if not message.strip():
-            await ws.send_text(ErrorEvent(data="empty message").model_dump_json())
+        normalized, err = _validate_history(history)
+        if err is not None:
+            await ws.send_text(ErrorEvent(data=err).model_dump_json())
             await ws.close()
             return
 
         llm = get_llm(streaming=True)
         retriever = get_retriever(k=6)
+        graph = build_graph(llm=llm, retriever=retriever)
+        messages = _history_to_messages(normalized)
 
-        async with AsyncSqliteSaver.from_conn_string(CHECKPOINT_DB) as checkpointer:
-            graph = build_graph(llm=llm, retriever=retriever, checkpointer=checkpointer)
-            input_state = {"messages": [HumanMessage(content=message)]}
-            config = {"configurable": {"thread_id": session_id}}
+        try:
+            final_state = await graph.ainvoke({"messages": messages})
 
-            # Snapshot the prior state so we can tell which messages are NEW in
-            # this turn. The checkpointer persists the entire thread history,
-            # so walking final_state["messages"] directly would re-emit every
-            # previous turn's citations and cause the reference-docs panel to
-            # accumulate on the client.
-            prior_message_ids: set[str] = set()
-            prior_snapshot = await graph.aget_state(config)
-            if prior_snapshot and prior_snapshot.values:
-                for m in prior_snapshot.values.get("messages", []) or []:
-                    mid = getattr(m, "id", None)
-                    if mid:
-                        prior_message_ids.add(mid)
-
-            try:
-                final_state = await graph.ainvoke(input_state, config=config)
-
-                # Emit the AI message content as a single token event.
-                ai_messages = [
-                    m for m in final_state["messages"] if isinstance(m, AIMessage)
-                ]
-                if ai_messages:
-                    ai_content = ai_messages[-1].content or ""
-                    if ai_content:
-                        await ws.send_text(json.dumps(
-                            {"event": "token", "data": ai_content}, ensure_ascii=False))
-
-                # Only consider messages added during this turn. The full
-                # final_state["messages"] includes persisted history; without
-                # this filter, citations from previous turns would leak into
-                # every response and the UI's reference panel would never clear.
-                new_messages = [
-                    m for m in final_state["messages"]
-                    if getattr(m, "id", None) and m.id not in prior_message_ids
-                ]
-                citations = _extract_citations(new_messages)
-                if citations:
+            ai_messages = [
+                m for m in final_state["messages"] if isinstance(m, AIMessage)
+            ]
+            if ai_messages:
+                ai_content = ai_messages[-1].content or ""
+                if ai_content:
                     await ws.send_text(json.dumps(
-                        {"event": "citation", "data": citations}, ensure_ascii=False))
+                        {"event": "token", "data": ai_content}, ensure_ascii=False))
 
-                # ReAct agent: if the model decided to call the search tool it
-                # ends up as a ToolMessage (handled above for citations); if it
-                # answered directly (greeting / meta / clarification) it never
-                # produced a ToolMessage. Both cases are "stop" — the old
-                # "no_doc" finish reason no longer applies.
+            citations = _extract_citations(final_state["messages"])
+            if citations:
                 await ws.send_text(json.dumps(
-                    {"event": "done", "data": {"finish_reason": "stop"}},
-                    ensure_ascii=False))
-            except WebSocketDisconnect:
-                return
-            except Exception as exc:                              # noqa: BLE001
-                exc_name = type(exc).__name__
-                exc_msg = str(exc)[:200]
-                print(
-                    f"[chat] agent error: {exc_name}: {exc}\n{traceback.format_exc()}",
-                    file=__import__("sys").stderr,
-                )
-                await ws.send_text(ErrorEvent(
-                    data=f"agent error ({exc_name}): {exc_msg}"
-                ).model_dump_json())
-                await ws.close()
-                return
+                    {"event": "citation", "data": citations}, ensure_ascii=False))
+
+            await ws.send_text(json.dumps(
+                {"event": "done", "data": {"finish_reason": "stop"}},
+                ensure_ascii=False))
+        except WebSocketDisconnect:
+            return
+        except Exception as exc:                              # noqa: BLE001
+            exc_name = type(exc).__name__
+            exc_msg = str(exc)[:200]
+            print(
+                f"[chat] agent error: {exc_name}: {exc}\n{traceback.format_exc()}",
+                file=__import__("sys").stderr,
+            )
+            await ws.send_text(ErrorEvent(
+                data=f"agent error ({exc_name}): {exc_msg}"
+            ).model_dump_json())
+            await ws.close()
+            return
 
     except WebSocketDisconnect:
         return

@@ -7,13 +7,18 @@ from .prompts import COUNSELOR_SYSTEM_PROMPT
 from .tools import build_search_documents_tool
 
 
-def build_graph(*, llm, retriever, checkpointer):
+def build_graph(*, llm, retriever, checkpointer=None):
     """Create a ReAct agent that uses ``search_documents`` as its only tool.
 
     The agent is a ``langgraph.prebuilt.create_react_agent`` instance. The LLM
     decides each turn whether to call the search tool or reply directly (handy
     for greetings, meta-questions, and follow-ups about the conversation
     history).
+
+    ``checkpointer`` is optional. Pass ``None`` (the default) for stateless,
+    request-scoped invocations where the full message history is supplied
+    by the caller each turn. Pass an in-memory or SQLite saver when you want
+    long-lived thread persistence keyed by ``thread_id``.
 
     Returns a compiled graph. Callers invoke it via::
 
