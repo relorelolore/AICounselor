@@ -77,6 +77,19 @@ async def chat(ws: WebSocket) -> None:
             input_state = {"messages": [HumanMessage(content=message)]}
             config = {"configurable": {"thread_id": session_id}}
 
+            # Snapshot the prior state so we can tell which messages are NEW in
+            # this turn. The checkpointer persists the entire thread history,
+            # so walking final_state["messages"] directly would re-emit every
+            # previous turn's citations and cause the reference-docs panel to
+            # accumulate on the client.
+            prior_message_ids: set[str] = set()
+            prior_snapshot = await graph.aget_state(config)
+            if prior_snapshot and prior_snapshot.values:
+                for m in prior_snapshot.values.get("messages", []) or []:
+                    mid = getattr(m, "id", None)
+                    if mid:
+                        prior_message_ids.add(mid)
+
             try:
                 final_state = await graph.ainvoke(input_state, config=config)
 
@@ -90,7 +103,15 @@ async def chat(ws: WebSocket) -> None:
                         await ws.send_text(json.dumps(
                             {"event": "token", "data": ai_content}, ensure_ascii=False))
 
-                citations = _extract_citations(final_state["messages"])
+                # Only consider messages added during this turn. The full
+                # final_state["messages"] includes persisted history; without
+                # this filter, citations from previous turns would leak into
+                # every response and the UI's reference panel would never clear.
+                new_messages = [
+                    m for m in final_state["messages"]
+                    if getattr(m, "id", None) and m.id not in prior_message_ids
+                ]
+                citations = _extract_citations(new_messages)
                 if citations:
                     await ws.send_text(json.dumps(
                         {"event": "citation", "data": citations}, ensure_ascii=False))

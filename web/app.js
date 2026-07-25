@@ -115,6 +115,9 @@ async function reindex() {
 async function sendMessage(text) {
   if (!text.trim()) return;
   appendMessage("user", text);
+  // 每次新提问立刻清空上一轮的参考文档；如本次查询命中检索，server 会在
+  // `citation` 事件里发回新的列表覆盖；不命中则保持空白隐藏，避免累积。
+  appendCitations([]);
   const assistantEl = appendMessage("assistant", "▍");
   let buffer = "";
 
