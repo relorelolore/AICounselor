@@ -7,6 +7,7 @@ const charCount = $("#char-count");
 const statusDot = $("#status-dot");
 const statusText = $("#status-text");
 const reindexEl = $("#reindex");
+const resetSessionEl = $("#reset-session");
 const citationsPanel = $("#citations-panel");
 const citationsList = $("#citations-list");
 
@@ -113,7 +114,11 @@ async function sendMessage(text) {
     } else if (payload.event === "done") {
       assistantEl.textContent = buffer;
     } else if (payload.event === "error") {
-      assistantEl.textContent = "（出错了）" + (payload.data || "");
+      const data = payload.data || "";
+      const hint = data.startsWith("agent error:") || data.startsWith("agent error (") || data.startsWith("unexpected:")
+        ? "\n\n（提示：可点右上角「重置会话」恢复，或请管理员清空 data/ 目录）"
+        : "";
+      assistantEl.textContent = "（出错了）" + data + hint;
     }
   };
   ws.onerror = () => {
@@ -140,6 +145,12 @@ sendEl.addEventListener("click", () => {
   sendMessage(v);
 });
 reindexEl.addEventListener("click", reindex);
+resetSessionEl.addEventListener("click", () => {
+  if (confirm("确定要清空当前会话并重新开始吗？")) {
+    localStorage.removeItem("session_id");
+    location.reload();
+  }
+});
 
 refreshHealth();
 setInterval(refreshHealth, 30000);
