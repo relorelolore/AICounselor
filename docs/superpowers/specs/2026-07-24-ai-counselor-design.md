@@ -406,3 +406,131 @@ exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - 文档增量上传 UI（当前仅扫描 `Documents/`）
 - 多角色切换（心理咨询/职业规划）走 LangGraph 子图
 - 后端鉴权 + 用户体系
+
+---
+
+# v2 增补（2026-07-25）：从固定 RAG 图改为工具调用 Agent
+
+## v2.1 动机
+
+v1 固定图 `retrieve → grade → generate|no_doc` 每次都先检索；「你好」「我刚才说了什么」等寒暄 / 元问题也被强制搜向量库，模板化返回「未在培养方案中查到」，机械感强。改为**工具调用 Agent** 后，LLM 自带 `search_documents` 工具，由它决定要不要调。
+
+## v2.2 架构变化
+
+| 项 | v1 | v2 |
+|---|---|---|
+| 图 | `retrieve → grade → generate \| no_doc` | `create_react_agent`（agent ↔ tools 循环） |
+| 检索入口 | 强制节点 | 工具 `search_documents(query: str) -> str` |
+| 寒暄处理 | 模板回复 | LLM 不调工具，直接回应 |
+| 元问题（"我刚才说了什么"） | 模板回复 | LLM 读 state.messages 直接答 |
+| 状态 | messages + retrieved_docs + is_relevant + citations | messages（ReAct 内部管 ToolMessage） |
+| 引用收集 | generate 节点 to_citations(retrieved_docs) | 监听 `messages` 中 `ToolMessage` 的 `tool_call_id` 对应的检索结果，回填 citations 字段 |
+| 前端契约 | 不变（WS 协议 + 引用面板） | 同 v1 |
+
+## v2.3 新组件
+
+### `agent/tools.py` — `search_documents(query: str) -> str`
+
+- 接受 query 字符串
+- 调 `retriever.invoke(query, k=RETRIEVE_K)`（默认 6）
+- 返回拼接的字符串，格式：
+  ```
+  [1] 来源：《文件名》 第 N 页
+      内容：snippet[:300]
+
+  [2] 来源：《文件名》 第 M 页
+      内容：snippet[:300]
+  ```
+- 工具 docstring 描述「搜索学校培养方案、课程、毕业要求等文档资料；不要用于寒暄、问候或与历史对话相关的提问」
+- LangChain `@tool` 装饰
+
+### `agent/graph.py` — 重写为 ReAct
+
+```python
+from langgraph.prebuilt import create_react_agent
+from langchain_core.messages import SystemMessage
+from .prompts import COUNSELOR_SYSTEM_PROMPT
+from .tools import build_search_documents_tool
+
+def build_graph(*, llm, retriever, checkpointer):
+    tools = [build_search_documents_tool(retriever)]
+    return create_react_agent(
+        model=llm,
+        tools=tools,
+        state_modifier=lambda state: [SystemMessage(content=COUNSELOR_SYSTEM_PROMPT)]
+                                 + state["messages"],
+        checkpointer=checkpointer,
+    )
+```
+
+### `agent/state.py` — 简化为 messages
+
+```python
+from typing import TypedDict
+from langchain_core.messages import BaseMessage
+
+class AgentState(TypedDict):
+    messages: list[BaseMessage]
+    # 由 chat route 在最终状态里手动填充 citations
+    citations: list[dict]
+```
+
+### `agent/prompts.py` — 温暖辅导员人设
+
+`COUNSELOR_SYSTEM_PROMPT`：
+
+```
+你是学校的 AI 学业辅导员，叫"小辅"。你的职责是回答学生关于培养方案、课程、毕业要求等问题。
+
+行为准则：
+- 像人一样说话。不要重复使用"未在培养方案中查到相关说法，建议咨询学院教务"这种固定模板——只在确实毫无信息时简短说明。
+- 必要时调用 search_documents 工具检索资料；如果只是打招呼、问心情、问自己之前说过什么、闲聊，根本不需要查资料——直接回应即可。
+- 答完要点的事。如果学生问得模糊，可以简短反问澄清，而不是堆一大段空话。
+- 用与学生相同的语言回答。
+- 不知道的事坦然承认，别编。
+- 回答尽量精炼：能一句话说完的不要五句。
+```
+
+## v2.4 引用收集（chat route）
+
+`app/routes_chat.py` 在 `graph.ainvoke` 完成后，从 `final_state["messages"]` 中找出所有 `ToolMessage`，对应 `search_documents` 工具的 ToolMessage 把它的 `artifact` 字段（实现细节见下）映射成 citations 列表，前端契约不变。
+
+具体：`search_documents` 工具的 artifact（结构化）字段保存 `Document` 列表；chat route 拿到这些 `Document` 后调 `to_citations(docs)` 生成 `[{filename, page, snippet}]`。
+
+```python
+def build_search_documents_tool(retriever):
+    @tool
+    def search_documents(query: str) -> str:
+        """搜索学校培养方案、课程、毕业要求等文档资料；不要用于寒暄或历史对话问题。"""
+        docs = retriever.invoke(query)
+        if not docs:
+            return "（未检索到相关文档）"
+        return format_docs_as_text(docs), docs        # LangChain ToolNode 用 artifact 字段传回结构化
+    return search_documents
+```
+
+注：`@tool` 装饰器对返回值是 `(text, artifact)` 时，会把 artifact 存入 ToolMessage 的 `artifact` 字段。
+
+## v2.5 测试策略
+
+- `tests/test_tools.py`：`search_documents` 用 FakeRetriever 验证返回字符串格式 + artifact
+- `tests/test_graph.py`：重写为 ReAct 场景：
+  - 寒暄：FakeChat 不调 tool 直接回 → 无 citations
+  - 文档问题：FakeChat 模拟「决定调 tool → 收到 ToolMessage → 总结」两步 → 有 citations
+  - 元问题：FakeChat 不调 tool 从 messages 读历史 → 无 citations
+- 旧 `tests/test_nodes.py` 的 `FakeChat`（同步 invoke）需要扩为支持 tool_calls：
+  - 提供一个 `make_tool_call_response(content, tool_calls=[])` 工厂
+  - 或更简单：每个测试 mock 整个 create_react_agent 的 model 行为；保留 FakeChat 接口但让它按轮次返回不同响应
+
+## v2.6 限制（已知）
+
+- **增量 token 流式**仍未实现——v1 同样的 `ainvoke` 后整段一次性发出。如果后续要 SSE，需要把 ReAct agent 改用 `astream_events` 监控 `on_chat_model_stream`。
+- **ReAct 多次推理**：模型可能调 1 次或多次 tool；总延迟取决于 LLM 决策速度。
+- **工具选择偶发抖**：本地模型小概率不调或多调，需通过 prompt 和 docstring 引导。
+
+## v2.7 不属于本次 v2 范围
+
+- Re-ranking / RAG-Fusion / MultiQuery
+- 多 agent 协作
+- 流式 token（增量 SSE）
+- 用户反馈与重排序
