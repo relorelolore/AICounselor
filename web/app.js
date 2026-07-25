@@ -10,10 +10,9 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 // ---------- Constants & utils ----------
 const STORAGE_KEY = "counselor:state";
 const STATE_VERSION = 1;
+const SIDEBAR_OPEN_KEY = "counselor:sidebar-open";
 const MAX_TITLE_LEN = 24;
 const MAX_MESSAGE_CHARS = 4000;
-const MAX_HISTORY_CHARS = 4000 * 20;
-const MAX_TITLE_PREFIX = (n) => `${n}/4000`;
 
 function uuidv4() {
   if (typeof crypto !== "undefined") {
@@ -245,13 +244,18 @@ const renderer = {
         const item = document.createElement("div");
         item.className = "chat-item" + (c.id === store.state.activeId ? " active" : "");
         item.dataset.id = c.id;
+        const text = document.createElement("div");
+        text.className = "chat-text";
         const t = document.createElement("span");
         t.className = "chat-title-text"; t.textContent = c.title;
+        const time = document.createElement("span");
+        time.className = "chat-time"; time.textContent = formatRelativeTime(c.updatedAt);
+        text.appendChild(t); text.appendChild(time);
         const btn = document.createElement("button");
         btn.type = "button"; btn.className = "chat-menu-btn"; btn.textContent = "⋯";
         btn.title = "更多";
         btn.dataset.act = "menu";
-        item.appendChild(t); item.appendChild(btn);
+        item.appendChild(text); item.appendChild(btn);
         frag.appendChild(item);
       }
     }
@@ -351,6 +355,11 @@ const renderer = {
 // ============================================================================
 let _liveCitationsForActiveSend = null;
 let currentLive = null;
+function setStopVisible(visible) {
+  const stop = $("#stop"); const send = $("#send");
+  if (stop) stop.hidden = !visible;
+  if (send) send.hidden = visible;
+}
 const chatActions = {
   create() {
     store.mutate((s) => {
@@ -393,6 +402,7 @@ const chatActions = {
       currentLive = null;
       _liveCitationsForActiveSend = null;
     }
+    setStopVisible(true);
     // Push user message + auto-title if needed.
     store.mutate((s) => {
       const c = s.chats.find((x) => x.id === targetChatId);
@@ -424,6 +434,7 @@ const chatActions = {
         live.finish();
         currentLive = null;
         _liveCitationsForActiveSend = null;
+        setStopVisible(false);
         store.mutate((s) => {
           const c = s.chats.find((x) => x.id === targetChatId);
           if (!c) return;
@@ -436,6 +447,7 @@ const chatActions = {
         live.showError(msg);
         currentLive = null;
         _liveCitationsForActiveSend = null;
+        setStopVisible(false);
         // Don't push the assistant message — user can retry.
       },
     });
@@ -461,23 +473,42 @@ const inputCtl = {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
     });
     send.addEventListener("click", submit);
+    const stop = $("#stop");
+    if (stop) stop.addEventListener("click", () => {
+      // Close the active WS; onclose → onDone fires with whatever has been
+      // buffered. If nothing yet, the bubble flips to error state in chatActions.
+      if (wsClient._ws) { try { wsClient._ws.close(); } catch {} }
+    });
   },
 };
 
 const sidebarCtl = {
   init() {
     const list = $("#chat-list"); const toggle = $("#sidebar-toggle");
-    const toggleInline = $("#sidebar-toggle-inline");
     const newBtn = $("#new-chat-btn");
-    const setCollapsed = (collapsed) => {
-      document.body.classList.toggle("sidebar-collapsed", collapsed);
-      try { localStorage.setItem("counselor:sidebar-collapsed", collapsed ? "1" : "0"); } catch {}
+    // Mobile (< 769px) hides the sidebar by default via CSS; on desktop the
+    // sidebar is part of the grid and is always visible. `sidebar-open` is the
+    // class the mobile CSS checks — toggling it on the sidebar header button
+    // is what makes ≡ actually dismiss the sidebar on phones.
+    const isDesktop = () => window.matchMedia("(min-width: 769px)").matches;
+    const setOpen = (open) => {
+      document.body.classList.toggle("sidebar-open", open);
+      try { localStorage.setItem(SIDEBAR_OPEN_KEY, open ? "1" : "0"); } catch {}
     };
+    // Apply persisted preference; default = open on desktop (visible), closed on mobile.
+    let stored = null;
+    try { stored = localStorage.getItem(SIDEBAR_OPEN_KEY); } catch {}
+    if (stored === "1" || stored === "0") setOpen(stored === "1");
+    else setOpen(isDesktop());
     if (toggle) toggle.addEventListener("click", () => {
-      const collapsed = !document.body.classList.contains("sidebar-collapsed");
-      setCollapsed(collapsed);
+      const open = document.body.classList.contains("sidebar-open");
+      setOpen(!open);
     });
-    if (toggleInline) toggleInline.addEventListener("click", () => setCollapsed(false));
+    // Keep mobile sidebar closed when the viewport shrinks below the breakpoint,
+    // so rotating a tablet to portrait doesn't strand an overlay.
+    window.matchMedia("(min-width: 769px)").addEventListener?.("change", (e) => {
+      if (!e.matches) setOpen(false);
+    });
     if (newBtn) newBtn.addEventListener("click", () => { chatActions.create(); });
     if (list) list.addEventListener("click", (e) => {
       const item = e.target.closest(".chat-item"); if (!item) return;
@@ -489,10 +520,6 @@ const sidebarCtl = {
       }
       chatActions.switchTo(id);
     });
-    // Restore collapsed state.
-    try {
-      if (localStorage.getItem("counselor:sidebar-collapsed") === "1") setCollapsed(true);
-    } catch {}
   },
 };
 

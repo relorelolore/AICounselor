@@ -90,11 +90,11 @@ def test_frontend_has_sidebar_and_toggle(client):
     assert 'id="new-chat-btn"' in html
 
 
-def test_frontend_cache_bust_is_v6(client):
+def test_frontend_cache_bust_is_v7(client):
     """app.js 必须带 cache-bust 参数（每次发布 bump 版本号）避免浏览器
-    缓存旧 JS。Task 5 把 v=5 升到 v=6；后续 bump 时同步更新。"""
+    缓存旧 JS。Review-fix wave 把 v=6 升到 v=7（移动端侧边栏修复）；后续 bump 时同步更新。"""
     html = client.get("/").text
-    assert '<script src="app.js?v=6"></script>' in html
+    assert '<script src="app.js?v=7"></script>' in html
 
 
 def test_frontend_includes_citation_drawer(client):

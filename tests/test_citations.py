@@ -165,10 +165,12 @@ async def test_citations_after_checkpointer_round_trip():
 async def test_citations_do_not_leak_across_turns():
     """Regression: 第二轮（不调工具）的 citations 不能包含第一轮的引用。
 
-    `routes_chat.py` 走 `_extract_current_turn_citations(final_state["messages"])`，而
-    `final_state["messages"]` 包含整个 thread 的持久化历史 —— 如果不过滤，
-    第一轮的 ToolMessage citations 会被原样带回，导致前端「参考资料」面板
-    累积。修复：用 `aget_state` 拿到旧消息 ID，只取本轮新增消息作为来源。
+    Production (`routes_chat.py`) calls
+    `_extract_current_turn_citations(final_state["messages"])`, which only
+    reads ``ToolMessage`` produced *after* the last ``HumanMessage``. So
+    with a stateless WS handler the test reduces to: drive a ReAct graph
+    that calls ``search_documents`` on turn 1 but not turn 2, and assert
+    turn 2's citations are empty.
     """
     docs_t1 = [Document(page_content="第一轮：培养方案要求 16 学分。",
                         metadata={"source": "plan.pdf", "page": 3})]
@@ -176,19 +178,13 @@ async def test_citations_do_not_leak_across_turns():
         {"name": "search_documents", "args": {"query": "学分"}, "id": "call_1"},
     ])
     answer_t1 = AIMessage(content="根据 [1]，需要 16 学分。")
-
     # 第二轮：LLM 不调工具，直接回答。
     answer_t2 = AIMessage(content="好的，记下来了。")
 
-    def _ids(messages):
-        return {m.id for m in messages if getattr(m, "id", None)}
-
-    def _cites_from(messages, prior_ids):
-        """Mirror `routes_chat.py` post-fix logic."""
+    def _cites_from(messages):
+        """Mirror `routes_chat.py` post-fix logic — no prior_ids parameter."""
         from app.routes_chat import _extract_current_turn_citations
-        new = [m for m in messages
-               if getattr(m, "id", None) and m.id not in prior_ids]
-        return _extract_current_turn_citations(new)
+        return _extract_current_turn_citations(messages)
 
     with tempfile.TemporaryDirectory() as tmp:
         ckpt = os.path.join(tmp, "ckpt.db")
@@ -203,10 +199,9 @@ async def test_citations_do_not_leak_across_turns():
                 {"messages": [HumanMessage(content="学分要求？")]},
                 config={"configurable": {"thread_id": "t-across"}},
             )
-            turn1_cites = _cites_from(out1["messages"], prior_ids=set())
+            turn1_cites = _cites_from(out1["messages"])
             assert len(turn1_cites) == 1
             assert turn1_cites[0]["filename"] == "plan.pdf"
-            prior_after_t1 = _ids(out1["messages"])
 
         # --- turn 2 (no tool call) ---
         async with AsyncSqliteSaver.from_conn_string(ckpt) as cp2:
@@ -215,20 +210,14 @@ async def test_citations_do_not_leak_across_turns():
                 retriever=_StaticRetriever(docs_t1),
                 checkpointer=cp2,
             )
-            # Simulate the snapshot taken in routes_chat.py BEFORE ainvoke.
-            snapshot = await g2.aget_state(
-                {"configurable": {"thread_id": "t-across"}}
-            )
-            prior_ids = _ids((snapshot.values or {}).get("messages", []) or [])
-
             out2 = await g2.ainvoke(
                 {"messages": [HumanMessage(content="好的")]},
                 config={"configurable": {"thread_id": "t-across"}},
             )
-            turn2_cites = _cites_from(out2["messages"], prior_ids=prior_ids)
-
+            turn2_cites = _cites_from(out2["messages"])
             # 第二轮没调工具，所以本轮 citations 应为空 —— 不应带回第一轮的。
             assert turn2_cites == [], (
                 f"第二轮不应累积第一轮的 citations，但拿到了 {turn2_cites}。"
-                "很可能是 routes_chat.py 的 prior_message_ids 过滤失效。"
+                "很可能是 _extract_current_turn_citations 的 last-HumanMessage "
+                "过滤失效。"
             )

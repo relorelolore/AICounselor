@@ -7,7 +7,7 @@
 <title>AI 辅导员</title>
 <link rel="stylesheet" href="style.css" />
 </head>
-<body class="sidebar-open">
+<body>
 <div id="toast" hidden><span id="toast-text"></span></div>
 <aside id="sidebar" aria-label="会话列表">
   <header class="sidebar-header">
@@ -19,7 +19,6 @@
 </aside>
 <main id="main">
   <header id="topbar">
-    <button id="sidebar-toggle-inline" type="button" aria-label="展开侧边栏" class="only-collapsed">≡</button>
     <h2 id="chat-title" title="点击重命名" tabindex="0">新会话</h2>
     <input id="chat-title-input" type="text" hidden />
     <div class="topbar-spacer"></div>
@@ -62,6 +61,6 @@
     <div class="msg-cites" hidden></div>
   </article>
 </template>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

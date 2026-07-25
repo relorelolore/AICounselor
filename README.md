@@ -87,6 +87,8 @@ rm -rf data/
 bash scripts/run.sh   # 自动重建索引 + chroma
 ```
 
+> **关于 `data/checkpoints.db`**：旧版 SqliteSaver 留下的检查点文件在 `bash scripts/run.sh` 启动时会自动删除（`scripts/run.sh` 里的一次性迁移，幂等）。如果手动 `rm -rf data/`，该文件也会随 Chroma 索引一并清掉，无需单独处理。
+
 ## 配置（环境变量）
 
 | 变量 | 默认值 |
