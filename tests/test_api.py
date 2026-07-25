@@ -37,11 +37,21 @@ def test_static_files_have_no_store_cache_header(client):
 
 def test_frontend_uses_localstorage_for_history(client):
     """多会话前端必须用 localStorage 持久化会话状态（key ``counselor:state``），
-    不能让会话列表只活在内存里——刷新页面应当看得到。"""
+    不能让会话列表只活在内存里——刷新页面应当看得到。
+
+    Bind the literal to the constant: we require the *exact declaration*
+    ``const STORAGE_KEY = "counselor:state"`` so a refactor that changes the
+    literal (e.g. ``STORAGE_KEY = "wrong-key"``) can't silently pass while still
+    satisfying `getItem`/`setItem` against `STORAGE_KEY`.
+    """
     app_js = client.get("/app.js").text
     # 实际源码将 localStorage key 抽到了 STORAGE_KEY 常量（避免散落字符串）。
-    assert '"counselor:state"' in app_js, (
-        "app.js 应定义 counselor:state 作为多会话状态的 localStorage key"
+    # 这里把常量的「定义」与「使用」绑在一起：定义必须是 ``STORAGE_KEY =
+    # "counselor:state"``（任何重命名 / 改字面量都会失败），后续读 / 写都要走
+    # 同一个常量。
+    assert 'STORAGE_KEY = "counselor:state"' in app_js, (
+        "app.js 必须将 STORAGE_KEY 显式声明为 'counselor:state'，"
+        "而不是散落的字符串字面量（否则 key 漂移时测试仍能假绿）"
     )
     assert "localStorage.getItem(STORAGE_KEY)" in app_js, (
         "app.js 应通过 STORAGE_KEY 读取多会话状态（store.load）"
@@ -53,12 +63,20 @@ def test_frontend_uses_localstorage_for_history(client):
 
 def test_frontend_sends_full_history_per_request(client):
     """每次发消息必须把当前会话的完整历史（不只本轮）发给后端，让后端
-    SqliteSaver / graph 在已持久化状态下推理；纯 session_id 模式不够。"""
+    SqliteSaver / graph 在已持久化状态下推理；纯 session_id 模式不够。
+
+    Bind the WS open-frame payload shape exactly: assert the real
+    ``JSON.stringify({ session_id: sessionId, history })`` expression so a
+    rename (e.g. ``msgs: history``) or dropping `history` from the payload
+    fails this test.
+    """
     app_js = client.get("/app.js").text
-    # WS open 帧的 payload 形如 ``{ session_id: ..., history }``。
-    # 这里采用对象简写，源码里 history 不带引号，作为 sentinel 验证。
-    assert "history }" in app_js, (
-        "app.js 应在 WS open 帧里把 history 一起发给后端（多会话无状态模型）"
+    # WS open 帧的 payload 必须是 ``JSON.stringify({ session_id: sessionId,
+    # history })`` —— 把 ``history`` 改名为 ``msgs`` / ``messages`` / 删掉都会
+    # 让这条断言失败，避免靠松散的 sentinel 假绿。
+    assert "JSON.stringify({ session_id: sessionId, history })" in app_js, (
+        "app.js 必须在 WS open 帧里 JSON.stringify 出 "
+        "`{ session_id: sessionId, history }`，把完整历史发给后端"
     )
 
 
