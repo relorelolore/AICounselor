@@ -35,6 +35,16 @@ pytest -q
 SKIP_LIVE_LLM=0 pytest tests/test_llm.py -v
 ```
 
+## 故障恢复
+
+如果遇到 `agent error: ...` 错误（特别是某些浏览器特有），多半是 LangGraph checkpointer 状态损坏。修复：
+
+```bash
+pkill -9 -f uvicorn
+rm -rf data/
+bash scripts/run.sh   # 自动重建索引 + chroma
+```
+
 ## 配置（环境变量）
 
 | 变量 | 默认值 |

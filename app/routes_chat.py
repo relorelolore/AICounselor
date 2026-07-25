@@ -1,6 +1,7 @@
 # app/routes_chat.py
 from __future__ import annotations
 import json
+import traceback
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -105,14 +106,30 @@ async def chat(ws: WebSocket) -> None:
             except WebSocketDisconnect:
                 return
             except Exception as exc:                              # noqa: BLE001
-                await ws.send_text(ErrorEvent(data=f"agent error: {exc}").model_dump_json())
+                exc_name = type(exc).__name__
+                exc_msg = str(exc)[:200]
+                print(
+                    f"[chat] agent error: {exc_name}: {exc}\n{traceback.format_exc()}",
+                    file=__import__("sys").stderr,
+                )
+                await ws.send_text(ErrorEvent(
+                    data=f"agent error ({exc_name}): {exc_msg}"
+                ).model_dump_json())
                 await ws.close()
                 return
 
     except WebSocketDisconnect:
         return
     except Exception as exc:                                     # noqa: BLE001
+        exc_name = type(exc).__name__
+        exc_msg = str(exc)[:200]
+        print(
+            f"[chat] unexpected error: {exc_name}: {exc}\n{traceback.format_exc()}",
+            file=__import__("sys").stderr,
+        )
         try:
-            await ws.send_text(ErrorEvent(data=f"unexpected: {exc}").model_dump_json())
+            await ws.send_text(ErrorEvent(
+                data=f"unexpected: ({exc_name}): {exc_msg}"
+            ).model_dump_json())
         except Exception:
             pass
