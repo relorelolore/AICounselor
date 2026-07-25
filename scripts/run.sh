@@ -4,6 +4,11 @@ cd "$(dirname "$0")/.."
 
 mkdir -p data
 
+# One-time migration: drop legacy per-session checkpoint DB. The backend
+# is now stateless; persistence lives entirely in the browser's
+# localStorage. Safe to leave in — it only acts when the file exists.
+rm -f data/checkpoints.db
+
 # 首启：自动入索引（OFFLINE=1 下也允许，因为 PDF 加载不依赖 embedding）
 if [ ! -d data/chroma ]; then
   echo "[run] first run, building index..."

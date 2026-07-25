@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **uv 0.11+** 管理 Python 3.12 虚拟环境（`.venv/` 已生成）。`pip install` / `python -m pytest` 直接调用都不会工作 — 必须 `uv run` 或在 `.venv` 内。
 - **llama.cpp** 在 `http://localhost:8848/v1` 提供 OpenAI 兼容接口；模型 `g0chu-Qwen3.6-35B-A3B-NVFP4`。该服务**不支持 embeddings**（返回 501，需 `--embeddings` 重启才能用）。
-- **Web/不提供 npm 构建**，纯原生 JS。
+- **Web/不提供 npm 构建**，纯原生 JS；前端自管多会话持久化（`localStorage["counselor:state"]`），后端无状态，所有历史通过 WS `history` 字段随请求发送。
 
 ## 命令
 
@@ -85,7 +85,7 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 | `MODEL_NAME` | `g0chu-Qwen3.6-35B-A3B-NVFP4` | 模型 id |
 | `EMBED_MODEL` | `BAAI/bge-m3` | sentence-transformers |
 | `DOCUMENTS_DIR` | `./Documents` | 入索引源 |
-| `DATA_DIR` | `./data` | chroma + checkpoints.db + index_meta.json |
+| `DATA_DIR` | `./data` | chroma + index_meta.json |
 | `WEB_DIR` | `./web` | 静态前端 |
 | `CHROMA_COLLECTION` | `counselor` | Chroma collection 名 |
 | `OFFLINE` | `0` | `1` 跳过 bge-m3 下载（用于测试） |
@@ -95,7 +95,7 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 
 4 类事件：`token`（assistant 消息内容，整段）、`citation`（`[{filename, page, snippet}]` 列表）、`done`（`{finish_reason: "stop"}`；v2 起不再有 `"no_doc"` 分支 — ReAct 由 LLM 决定是否调工具，chat route 落到 `ToolMessage` 即可拿到 citations）、`error`（`{data: "..."}`）。
 
-前端 `web/app.js` 用 `localStorage.session_id`（UUID）做会话恢复；每个连接对应 LangGraph `thread_id`，多轮历史由 `SqliteSaver` 持久化到 `data/checkpoints.db`。
+前端 `web/app.js` 用 `localStorage["counselor:state"]` 存所有会话；`session_id = chat.id`，同一会话多次发送沿用同一 id（仅作审计 hook，不参与图运行）。后端是无状态的；多轮历史由前端在每次请求时通过 `history` 字段随 WS 一起发送，LangGraph 用 `InMemorySaver` 或无 checkpointer 跑这一轮。
 
 ## 不属于本项目
 
