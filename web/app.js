@@ -10,7 +10,7 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 // ---------- Constants & utils ----------
 const STORAGE_KEY = "counselor:state";
 const STATE_VERSION = 1;
-const SIDEBAR_OPEN_KEY = "counselor:sidebar-open";
+const SIDEBAR_COLLAPSED_KEY = "counselor:sidebar-collapsed";
 const MAX_TITLE_LEN = 24;
 const MAX_MESSAGE_CHARS = 4000;
 
@@ -485,41 +485,43 @@ const inputCtl = {
 const sidebarCtl = {
   init() {
     const list = $("#chat-list"); const toggle = $("#sidebar-toggle");
+    const toggleInline = $("#sidebar-toggle-inline");
     const newBtn = $("#new-chat-btn");
-    // Mobile (< 769px) hides the sidebar by default via CSS; on desktop the
-    // sidebar is part of the grid and is always visible. `sidebar-open` is the
-    // class the mobile CSS checks — toggling it on the sidebar header button
-    // is what makes ≡ actually dismiss the sidebar on phones.
     const isDesktop = () => window.matchMedia("(min-width: 769px)").matches;
-    const setOpen = (open) => {
-      document.body.classList.toggle("sidebar-open", open);
-      try { localStorage.setItem(SIDEBAR_OPEN_KEY, open ? "1" : "0"); } catch {}
+    const setCollapsed = (collapsed) => {
+      document.body.classList.toggle("sidebar-collapsed", collapsed);
+      if (toggleInline) toggleInline.hidden = !collapsed;
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0"); } catch {}
     };
-    // Apply persisted preference; default = open on desktop (visible), closed on mobile.
+    // Restore persisted preference; default = expanded (no collapse) on desktop,
+    // collapsed (hidden) on mobile.
     let stored = null;
-    try { stored = localStorage.getItem(SIDEBAR_OPEN_KEY); } catch {}
-    if (stored === "1" || stored === "0") setOpen(stored === "1");
-    else setOpen(isDesktop());
-    if (toggle) toggle.addEventListener("click", () => {
-      const open = document.body.classList.contains("sidebar-open");
-      setOpen(!open);
-    });
-    // Keep mobile sidebar closed when the viewport shrinks below the breakpoint,
-    // so rotating a tablet to portrait doesn't strand an overlay.
-    window.matchMedia("(min-width: 769px)").addEventListener?.("change", (e) => {
-      if (!e.matches) setOpen(false);
-    });
-    if (newBtn) newBtn.addEventListener("click", () => { chatActions.create(); });
+    try { stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY); } catch {}
+    if (stored === "1" || stored === "0") setCollapsed(stored === "1");
+    else setCollapsed(!isDesktop());
+    const toggleHandler = () => {
+      const collapsed = document.body.classList.contains("sidebar-collapsed");
+      setCollapsed(!collapsed);
+    };
+    if (toggle) toggle.addEventListener("click", toggleHandler);
+    if (toggleInline) toggleInline.addEventListener("click", toggleHandler);
+    // On mobile, switch to a chat should close the sidebar overlay so the
+    // user can see the chat content. On desktop the sidebar stays open.
     if (list) list.addEventListener("click", (e) => {
       const item = e.target.closest(".chat-item"); if (!item) return;
       const id = item.dataset.id;
       if (e.target.dataset.act === "menu") {
-        const rect = item.getBoundingClientRect();
-        openContextMenu(id, rect.left, rect.bottom);
+        openContextMenu(id);
         return;
       }
       chatActions.switchTo(id);
+      if (!isDesktop()) setCollapsed(true);
     });
+    // When the viewport shrinks below the breakpoint, auto-collapse (hide).
+    window.matchMedia("(min-width: 769px)").addEventListener?.("change", (e) => {
+      if (!e.matches) setCollapsed(true);
+    });
+    if (newBtn) newBtn.addEventListener("click", () => { chatActions.create(); });
   },
 };
 
@@ -552,15 +554,27 @@ const topbarCtl = {
     if (btn && menu) {
       btn.addEventListener("click", (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
       document.addEventListener("click", () => { menu.hidden = true; });
-      menu.addEventListener("click", (e) => {
+      menu.addEventListener("click", async (e) => {
         const act = e.target.dataset.act; if (!act) return;
         menu.hidden = true;
         if (act === "rename") { beginEdit(); }
         else if (act === "delete") {
-          if (confirm("删除当前会话？此操作不可撤销。")) chatActions.remove(store.active().id);
+          const ok = await modalCtl.confirm({
+            title: "删除当前会话？",
+            message: `「${store.active().title}」将被永久删除，无法撤销。`,
+            confirmLabel: "删除",
+            danger: true,
+          });
+          if (ok) chatActions.remove(store.active().id);
         }
         else if (act === "clear-all") {
-          if (confirm("清空全部会话？此操作不可撤销。")) chatActions.clearAll();
+          const ok = await modalCtl.confirm({
+            title: "清空全部会话？",
+            message: `所有 ${store.state.chats.length} 个会话将被永久删除，无法撤销。`,
+            confirmLabel: "全部删除",
+            danger: true,
+          });
+          if (ok) chatActions.clearAll();
         }
       });
     }
@@ -625,15 +639,130 @@ const emptyCtl = {
   },
 };
 
-// Context menu for chat items (simple confirm-based; reuse window.confirm to avoid new UI)
-function openContextMenu(id, x, y) {
+// ============================================================================
+// Modal dialog (replaces window.confirm / window.prompt)
+// ============================================================================
+const modalCtl = {
+  _resolve: null,
+  _kind: null,            // "confirm" | "prompt" | "choose"
+  _options: null,         // for "choose"
+  _backdropEl: null,
+  _modalEl: null,
+  _titleEl: null,
+  _msgEl: null,
+  _inputEl: null,
+  _actionsEl: null,
+  _confirmBtn: null,
+  _cancelBtn: null,
+  _lastFocus: null,
+  init() {
+    this._backdropEl = $("#modal-backdrop");
+    this._modalEl = $("#modal");
+    this._titleEl = $("#modal-title");
+    this._msgEl = $("#modal-message");
+    this._inputEl = $("#modal-input");
+    this._actionsEl = $(".modal-actions", this._modalEl);
+    this._confirmBtn = $("#modal-confirm");
+    this._cancelBtn = $("#modal-cancel");
+    const close = (result) => this._close(result);
+    this._confirmBtn.addEventListener("click", () => close("confirm"));
+    this._cancelBtn.addEventListener("click", () => close("cancel"));
+    this._backdropEl.addEventListener("click", () => close("cancel"));
+    this._inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); close("confirm"); }
+      else if (e.key === "Escape") { e.preventDefault(); close("cancel"); }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (this._modalEl.hidden) return;
+      if (e.key === "Escape") { e.preventDefault(); close("cancel"); }
+    });
+  },
+  _open(kind, { title, message, defaultValue = "", placeholder = "", options = [], confirmLabel = "确认", cancelLabel = "取消", danger = false }) {
+    // If another modal is open, resolve it as cancel first.
+    if (!this._modalEl.hidden) this._close("cancel");
+    this._lastFocus = document.activeElement;
+    this._kind = kind;
+    this._options = options;
+    this._titleEl.textContent = title || "";
+    this._msgEl.textContent = message || "";
+    this._msgEl.hidden = !message;
+    this._inputEl.hidden = kind !== "prompt";
+    this._inputEl.value = defaultValue;
+    this._inputEl.placeholder = placeholder || "";
+    this._confirmBtn.textContent = confirmLabel;
+    this._cancelBtn.textContent = cancelLabel;
+    this._confirmBtn.classList.toggle("danger", !!danger);
+    this._confirmBtn.classList.toggle("primary", !danger);
+    // Render any extra option buttons (for "choose" kind) between cancel & confirm.
+    this._actionsEl.replaceChildren(this._cancelBtn, this._confirmBtn);
+    if (kind === "choose" && options.length > 0) {
+      const extra = document.createDocumentFragment();
+      options.forEach((opt, i) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = opt.label;
+        b.className = opt.danger ? "danger" : "primary";
+        b.dataset.choiceIdx = String(i);
+        b.addEventListener("click", () => this._close({ choiceIdx: i }));
+        extra.appendChild(b);
+      });
+      this._actionsEl.insertBefore(extra, this._cancelBtn);
+    }
+    this._backdropEl.hidden = false;
+    this._modalEl.hidden = false;
+    return new Promise((resolve) => { this._resolve = resolve; });
+  },
+  _close(result) {
+    if (this._modalEl.hidden) return;
+    const r = this._resolve; this._resolve = null;
+    this._backdropEl.hidden = true;
+    this._modalEl.hidden = true;
+    let value = null;
+    if (result === "confirm") {
+      value = this._kind === "prompt" ? (this._inputEl.value || "") : true;
+    } else if (result === "cancel") {
+      value = this._kind === "prompt" ? null : false;
+    } else if (result && typeof result === "object" && "choiceIdx" in result) {
+      value = this._options[result.choiceIdx]?.value;
+    }
+    if (this._lastFocus && this._lastFocus.focus) try { this._lastFocus.focus(); } catch {}
+    if (r) r(value);
+  },
+  confirm(opts) { return this._open("confirm", opts); },
+  prompt(opts) { return this._open("prompt", opts); },
+  choose(opts) { return this._open("choose", opts); },
+};
+
+// Per-chat sidebar action menu (replaces the native prompt/confirm flow).
+async function openContextMenu(id) {
   const c = store.state.chats.find((x) => x.id === id); if (!c) return;
-  const choice = prompt(`操作「${c.title}」：\n1. 重命名\n2. 删除\n输入 1 或 2：`);
-  if (choice === "1") {
-    const t = prompt("新标题：", c.title);
+  const choice = await modalCtl.choose({
+    title: "操作会话",
+    message: `「${c.title}」`,
+    options: [
+      { label: "重命名", value: "rename" },
+      { label: "删除",   value: "delete", danger: true },
+    ],
+    confirmLabel: "取消",
+    cancelLabel: "取消",
+  });
+  if (choice === "rename") {
+    const t = await modalCtl.prompt({
+      title: "重命名会话",
+      message: `给「${c.title}」起个新名字：`,
+      defaultValue: c.title,
+      placeholder: "会话标题",
+      confirmLabel: "保存",
+    });
     if (t && t.trim()) chatActions.rename(id, t.trim());
-  } else if (choice === "2") {
-    if (confirm("删除这个会话？")) chatActions.remove(id);
+  } else if (choice === "delete") {
+    const ok = await modalCtl.confirm({
+      title: "删除会话？",
+      message: `「${c.title}」将被永久删除，无法撤销。`,
+      confirmLabel: "删除",
+      danger: true,
+    });
+    if (ok) chatActions.remove(id);
   }
 }
 
@@ -663,6 +792,7 @@ function boot() {
   topbarCtl.init();
   inputCtl.init();
   drawerCtl.init();
+  modalCtl.init();
   emptyCtl.init();
   renderer.renderAll();
   refreshHealth();

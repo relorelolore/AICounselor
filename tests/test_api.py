@@ -90,11 +90,34 @@ def test_frontend_has_sidebar_and_toggle(client):
     assert 'id="new-chat-btn"' in html
 
 
-def test_frontend_cache_bust_is_v7(client):
+def test_frontend_cache_bust_is_v9(client):
     """app.js 必须带 cache-bust 参数（每次发布 bump 版本号）避免浏览器
-    缓存旧 JS。Review-fix wave 把 v=6 升到 v=7（移动端侧边栏修复）；后续 bump 时同步更新。"""
+    缓存旧 JS。Sidebar 折叠修复 v=8→v=9。"""
     html = client.get("/").text
-    assert '<script src="app.js?v=7"></script>' in html
+    assert '<script src="app.js?v=9"></script>' in html
+
+
+def test_frontend_has_inline_sidebar_toggle(client):
+    """移动端默认折叠后，需要 topbar 上的 #sidebar-toggle-inline 才能展开。"""
+    html = client.get("/").text
+    assert 'id="sidebar-toggle-inline"' in html
+    assert 'aria-label="展开侧边栏"' in html
+
+
+def test_frontend_has_custom_modal(client):
+    """自定义 modal 替代了原生 confirm/prompt — 应该有 #modal / #modal-backdrop / #modal-title / #modal-input / .modal-actions。"""
+    html = client.get("/").text
+    for sel in ('id="modal-backdrop"', 'id="modal"', 'id="modal-title"', 'id="modal-message"',
+                'id="modal-input"', 'id="modal-confirm"', 'id="modal-cancel"', 'class="modal-actions"'):
+        assert sel in html, f"前端缺少 modal 元素 {sel!r}"
+
+
+def test_frontend_drops_native_dialogs(client):
+    """原生 window.confirm / window.prompt / window.alert 应已彻底删除（modalCtl 取代）。"""
+    app_js = client.get("/app.js").text
+    assert "window.confirm(" not in app_js
+    assert "window.prompt(" not in app_js
+    assert "window.alert(" not in app_js
 
 
 def test_frontend_includes_citation_drawer(client):

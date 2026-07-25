@@ -19,6 +19,7 @@
 </aside>
 <main id="main">
   <header id="topbar">
+    <button id="sidebar-toggle-inline" type="button" aria-label="展开侧边栏" title="展开侧边栏" hidden>≡</button>
     <h2 id="chat-title" title="点击重命名" tabindex="0">新会话</h2>
     <input id="chat-title-input" type="text" hidden />
     <div class="topbar-spacer"></div>
@@ -55,12 +56,22 @@
   <header><h3>参考资料</h3><button id="drawer-close" type="button" aria-label="关闭">×</button></header>
   <div id="drawer-body"></div>
 </aside>
+<div id="modal-backdrop" hidden></div>
+<div id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <h3 id="modal-title"></h3>
+  <p id="modal-message"></p>
+  <input id="modal-input" type="text" hidden />
+  <div class="modal-actions">
+    <button id="modal-cancel" type="button">取消</button>
+    <button id="modal-confirm" type="button" class="primary">确认</button>
+  </div>
+</div>
 <template id="message-template">
   <article class="msg">
     <div class="msg-content"></div>
     <div class="msg-cites" hidden></div>
   </article>
 </template>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
