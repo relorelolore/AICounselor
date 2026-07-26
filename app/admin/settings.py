@@ -12,6 +12,7 @@ DEFAULTS: dict[str, dict] = {
     "llm": {
         "base_url": "http://localhost:8848/v1",
         "model_name": "g0chu-Qwen3.6-35B-A3B-NVFP4",
+        "api_key": "llama.cpp",
         "temperature": 0.3,
         "max_tokens": 2048,
         "timeout": 120,
@@ -62,7 +63,7 @@ _INT_FIELDS: set[tuple[str, str]] = {
 }
 
 _STR_FIELDS: set[tuple[str, str]] = {
-    ("llm", "base_url"), ("llm", "model_name"),
+    ("llm", "base_url"), ("llm", "model_name"), ("llm", "api_key"),
     ("paths", "documents_dir"), ("paths", "data_dir"), ("paths", "chroma_collection"),
     ("embedding", "model"),
 }

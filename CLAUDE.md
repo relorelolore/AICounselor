@@ -115,6 +115,7 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `LLAMACPP_BASE_URL` | `http://localhost:8848/v1` | llama.cpp OpenAI 兼容端点 |
+| `LLAMACPP_API_KEY` | `llama.cpp` | llama.cpp OpenAI 兼容端点 API key（默认 `"llama.cpp"`；切换到需鉴权的云服务时覆盖） |
 | `MODEL_NAME` | `g0chu-Qwen3.6-35B-A3B-NVFP4` | 模型 id |
 | `EMBED_MODEL` | `BAAI/bge-m3` | sentence-transformers |
 | `DOCUMENTS_DIR` | `./Documents` | 入索引源 |

@@ -54,6 +54,7 @@ class AccountUpdate(BaseModel):
 class LLMSettings(BaseModel):
     base_url: str
     model_name: str
+    api_key: str
     temperature: float
     max_tokens: int
     timeout: int
