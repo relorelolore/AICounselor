@@ -37,8 +37,20 @@ DEFAULTS: dict[str, dict] = {
 
 
 REQUIRES_RESTART: dict[str, set[str]] = {
-    "llm": {"base_url", "model_name", "timeout"},
+    # llm: all fields are hot-reloadable. `get_llm()` reads base_url /
+    # model_name / timeout / api_key / temperature / ... from the singleton
+    # on every request, and the startup hook re-applies admin DB overrides
+    # on every process restart, so changes take effect without restart.
+    "llm": set(),
+    # retrieval: `get_retriever()` and `split()` read k / chunk_size /
+    # chunk_overlap from the singleton at call time. Re-ingestion picks up
+    # new chunk sizes immediately; existing chunks stay as-is.
+    "retrieval": set(),
+    # paths: chroma collection / data dir cannot be changed in-place without
+    # rebuilding the collection — truly restart-required.
     "paths": {"documents_dir", "data_dir", "chroma_collection"},
+    # embedding: SentenceTransformer instance is loaded once at first use and
+    # cached. Changing the model name requires a restart.
     "embedding": {"model"},
 }
 

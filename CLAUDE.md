@@ -55,10 +55,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 路由：`/api/admin/{login,logout,me,accounts,settings,reindex,reindex/last}`；session cookie `counselor_admin`（HttpOnly + SameSite=Lax + 24h 滑动续期）。
 - CSRF：所有 mutating 方法（POST/PATCH/PUT/DELETE）拒绝缺失或与请求 Host 不匹配的 `Origin` 头（GET 豁免）。默认允许 `COUNSELOR_ALLOWED_ORIGIN`（默认 `http://localhost:8000`）**或** Origin 的 host:port 等于请求 `Host` 头（浏览器同源请求天然满足）。可通过 `COUNSELOR_ALLOWED_ORIGIN` 环境变量收紧到特定源。Vite dev 下 proxy 已把 Origin 改写为 `http://localhost:8000`（见 `frontend/vite.config.ts`）。
 - 锁定策略：6 次错误后**永久**锁定，必须其他管理员手动解锁。
-- 可调参数分两类：热生效（`temperature/max_tokens/top_p/penalties/k/chunk_*`）和需重启（`base_url/model_name/timeout/paths/embedding.model`）；`PUT /api/admin/settings` 返回的 `restart_required` 字段列出后者。
+- 可调参数分两类：热生效（`llm.*` 全部 / `retrieval.*` 全部 — 包括 `base_url` / `model_name` / `timeout` / `k` / `chunk_*`，由 `get_llm()` / `get_retriever()` / `split()` 每次调用读单例 + startup hook 把 admin DB 覆盖应用到单例）和需重启（`paths.documents_dir` / `paths.data_dir` / `paths.chroma_collection` / `embedding.model` — chroma collection 不可 in-place 改名 + SentenceTransformer 启动时一次性加载）；`PUT /api/admin/settings` 返回的 `restart_required` 字段列出后者。
 - 前端：`frontend/src/views/admin/`（Login / AdminLayout / Dashboard / Accounts / Settings），路由守卫调 `GET /api/admin/me` 判登录态，401 → `/admin/login?redirect=...`。
 - 用户前台去掉了「重建索引」按钮（迁移至后台），`/api/ingest` 已删除（重建索引仅走 `POST /api/admin/reindex`）。
-- `llm/config.py` / `rag/retriever.py` / `rag/splitter.py` 改为从运行时单例读配置，支持热生效字段的下一次请求即时生效。
+- `llm/config.py` / `rag/retriever.py` / `rag/splitter.py` 从运行时单例读配置；`app/main.py::_load_admin_settings_into_singletons()` 在 startup 时把 admin DB 覆盖应用到单例，保证配置在 `--reload` / 完全重启后不丢。
 
 ## 前端架构（`frontend/`）
 

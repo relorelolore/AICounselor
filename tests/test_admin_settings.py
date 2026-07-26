@@ -46,10 +46,15 @@ def test_defaults_contain_every_field():
 
 
 def test_requires_restart_lists_known_fields():
-    assert "base_url" in REQUIRES_RESTART["llm"]
-    assert "model_name" in REQUIRES_RESTART["llm"]
-    assert "documents_dir" in REQUIRES_RESTART["paths"]
-    assert "model" in REQUIRES_RESTART["embedding"]
+    # llm + retrieval: all fields hot-reloadable (next request picks them up
+    # via get_llm_settings() / get_retriever() / split() reading the singleton
+    # + startup hook reloading admin DB into singletons).
+    assert REQUIRES_RESTART["llm"] == set()
+    assert REQUIRES_RESTART["retrieval"] == set()
+    # paths: chroma collection / data dir cannot be changed in-place.
+    assert REQUIRES_RESTART["paths"] == {"documents_dir", "data_dir", "chroma_collection"}
+    # embedding: SentenceTransformer instance loaded once at startup.
+    assert REQUIRES_RESTART["embedding"] == {"model"}
 
 
 # ----- get_effective_settings -----
@@ -146,10 +151,22 @@ def test_update_writes_to_db_and_returns_new_value():
 
 
 def test_update_returns_restart_required_fields():
+    # base_url/model_name/timeout are now hot-reloadable (chat route, /api/health
+    # probe, and startup hook all read get_llm_settings()).
     new, restart = update_settings(
         sections={"llm": {"base_url": "http://x:1234/v1"}}, by_username="admin"
     )
-    assert "llm.base_url" in restart
+    assert "llm.base_url" not in restart
+    # paths.documents_dir IS still restart-required.
+    new, restart = update_settings(
+        sections={"paths": {"documents_dir": "./new"}}, by_username="admin"
+    )
+    assert "paths.documents_dir" in restart
+    # embedding.model IS still restart-required.
+    new, restart = update_settings(
+        sections={"embedding": {"model": "BAAI/bge-large"}}, by_username="admin"
+    )
+    assert "embedding.model" in restart
 
 
 def test_update_overwrites_previous_section_value():

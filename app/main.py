@@ -26,12 +26,13 @@ def _load_admin_settings_into_singletons() -> None:
     uvicorn --reload). Applying the effective settings here makes admin
     changes survive restarts.
 
-    REQUIRES_RESTART remains informational in the admin UI; we apply all
-    hot-reloadable fields plus the (currently also hot-reloadable in chat)
-    base_url / model_name / timeout so that --reload and full restarts
-    produce a consistent process. `paths` is intentionally not applied —
-    it's truly restart-required (chroma collection name cannot change
-    in-place without rebuilding the collection).
+    Per `app/admin/settings.py::REQUIRES_RESTART`, only `paths.*` and
+    `embedding.model` are truly restart-required. `paths` is intentionally
+    not applied here — chroma collection name / data dir cannot change
+    in-place without rebuilding the collection. `embedding.model` IS
+    applied; the SentenceTransformer instance in `rag/embeddings.py`
+    will rebuild on first use after a process restart because the cached
+    instance lives in the worker process only.
     """
     eff = get_effective_settings()
     update_llm_settings(eff["llm"])

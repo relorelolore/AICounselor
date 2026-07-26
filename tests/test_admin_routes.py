@@ -207,17 +207,28 @@ def test_get_settings_returns_all_sections(logged_in):
 
 
 def test_put_settings_updates_and_returns_restart_required(logged_in):
+    # llm.* fields are now all hot-reloadable (base_url included). restart_required
+    # should be empty for llm-only updates; use paths.documents_dir to exercise the
+    # restart-required path.
     r = logged_in.put(
         "/api/admin/settings",
         json={"sections": {"llm": {"temperature": 0.5, "base_url": "http://x:1/v1"}}},
     )
     assert r.status_code == 200
     body = r.json()
-    assert "llm.base_url" in body["restart_required"]
+    assert body["restart_required"] == []
     # Re-read:
     r2 = logged_in.get("/api/admin/settings")
     assert r2.json()["llm"]["temperature"] == 0.5
     assert r2.json()["llm"]["base_url"] == "http://x:1/v1"
+
+    # paths.documents_dir is genuinely restart-required.
+    r = logged_in.put(
+        "/api/admin/settings",
+        json={"sections": {"paths": {"documents_dir": "./new"}}},
+    )
+    assert r.status_code == 200
+    assert "paths.documents_dir" in r.json()["restart_required"]
 
 
 def test_put_settings_invalid_value_returns_400(logged_in):

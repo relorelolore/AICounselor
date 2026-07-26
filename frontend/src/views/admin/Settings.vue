@@ -261,12 +261,12 @@ async function saveGroup(group: GroupDef) {
           </div>
         </n-card>
 
-        <!-- LLM 连接（需重启） -->
+        <!-- LLM 连接（热生效） -->
         <n-card class="card" :bordered="false">
           <template #header>
             <div class="card-head">
               <span class="card-title">LLM 连接</span>
-              <span class="badge restart">需重启</span>
+              <span class="badge hot">热生效</span>
             </div>
           </template>
           <n-form label-placement="left" :label-width="210">
