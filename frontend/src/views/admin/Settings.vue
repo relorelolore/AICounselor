@@ -13,6 +13,7 @@ import {
   NInput,
   NInputNumber,
   NSpin,
+  NSwitch,
   useMessage,
 } from "naive-ui";
 import { onMounted, reactive, ref } from "vue";
