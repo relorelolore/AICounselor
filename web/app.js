@@ -578,21 +578,6 @@ const topbarCtl = {
         }
       });
     }
-    // Reindex
-    const reindexBtn = $("#reindex");
-    if (reindexBtn) reindexBtn.addEventListener("click", async () => {
-      reindexBtn.disabled = true; reindexBtn.textContent = "处理中…";
-      try {
-        const r = await fetchWithTimeout("/api/ingest", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ force: false }),
-        }, 30000);
-        const data = await r.json();
-        toast(`索引完成：新增 ${data.added}，跳过 ${data.skipped}，失败 ${data.failed.length}`);
-        refreshHealth();
-      } catch (e) { toast("入索引失败：" + e); }
-      finally { reindexBtn.disabled = false; reindexBtn.textContent = "重建索引"; }
-    });
   },
 };
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from storage.paths import ADMIN_WEB_DIR, WEB_DIR
 from .admin.routes import router as admin_router
@@ -18,6 +18,13 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(chat_router)
     app.include_router(admin_router, prefix="/api/admin")
+
+    # Keep unknown API paths out of the root static-file mount, which otherwise
+    # reports POST requests as 405 instead of the API-standard 404.
+    @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    async def api_not_found(path: str) -> None:
+        raise HTTPException(status_code=404, detail="Not Found")
+
     if os.path.isdir(WEB_DIR):
         # `no-store` so browsers always refetch index.html / app.js / style.css;
         # avoids the stale-JS class of bugs (e.g. citations panel accumulating).

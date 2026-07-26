@@ -81,11 +81,11 @@ def test_frontend_has_sidebar_and_toggle(client):
     assert 'id="new-chat-btn"' in html
 
 
-def test_frontend_cache_bust_is_v12(client):
+def test_frontend_cache_bust_is_v13(client):
     """app.js 必须带 cache-bust 参数（每次发布 bump 版本号）避免浏览器
-    缓存旧 JS。Modal 视觉/冗余按钮修复 v=11→v=12。"""
+    缓存旧 JS。移除用户界面重建索引逻辑 v=12→v=13。"""
     html = client.get("/").text
-    assert '<script src="app.js?v=12"></script>' in html
+    assert '<script src="app.js?v=13"></script>' in html
 
 
 def test_frontend_has_inline_sidebar_toggle(client):
@@ -126,3 +126,16 @@ def test_frontend_drops_old_session_storage(client):
     # localStorage 读写 session_id 的旧模式必须消失：
     assert 'localStorage.getItem("session_id")' not in app_js
     assert 'localStorage.setItem("session_id"' not in app_js
+
+
+def test_reindex_button_removed_from_user_ui(client):
+    html = client.get("/").text
+    js = client.get("/app.js").text
+    assert 'id="reindex"' not in html
+    assert "重建索引" not in html
+    assert "reindexBtn" not in js
+
+
+def test_ingest_route_no_longer_public(client):
+    r = client.post("/api/ingest", json={"force": False})
+    assert r.status_code == 404
