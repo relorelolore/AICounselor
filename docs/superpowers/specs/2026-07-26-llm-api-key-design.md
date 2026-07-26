@@ -192,6 +192,17 @@ class LLMSettings(BaseModel):
 - 显示给可信管理员便于核对（无需来回切换）
 - 不在 admin_session / 普通日志里打印（`db_settings.set()` 只存 value，不打日志）
 
+### GET vs PUT 响应形状（不对称）
+
+| 端点 | 响应形状 |
+|---|---|
+| `GET /api/admin/settings` | **直出**：4-key 对象 `{llm: {...}, retrieval: {...}, paths: {...}, embedding: {...}}`（无顶层包装） |
+| `PUT /api/admin/settings` | **包络**：`{sections: {<merged new state>}, restart_required: ["llm.base_url", ...]}` |
+
+原因：`GET` 直接返回 `settings_svc.get_effective_settings()`（line `app/admin/routes.py:222-223`），便于前端 `form.<section> = { ...s.<section> }` 拷贝；`PUT` 携带 `restart_required` 字段，便于前端展示「需重启」标识。两者不对称是有意设计，前端 `Settings.vue::saveGroup` 已经处理两种形状。
+
+锁定测试：`tests/test_admin_routes.py::test_get_settings_returns_all_sections`（直出 4-key） + `test_settings_round_trip_api_key`（PUT 包络）。
+
 ---
 
 ## §6. 前端（自动适配）
