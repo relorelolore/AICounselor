@@ -1,5 +1,6 @@
 # tests/test_api.py
 import os
+import threading
 from fastapi.testclient import TestClient
 import pytest
 
@@ -59,3 +60,46 @@ def test_spa_fallback_get_only(client):
     """fallback 只处理 GET/HEAD；其他方法打到未知路径不应返回 index.html。"""
     r = client.post("/some/random/path")
     assert r.status_code != 200 or '<div id="app">' not in r.text
+
+
+def test_health_probe_sends_authorization(monkeypatch):
+    """_probe_llm 必须在 GET /v1/models 上带 Authorization: Bearer <key>。"""
+    import importlib
+    import llm.config as cfg
+    importlib.reload(cfg)  # ensure default "llama.cpp"
+
+    captured = {}
+
+    class _FakeResp:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(req, timeout=2.0):
+        captured["req"] = req
+        captured["auth"] = req.headers.get("Authorization")
+        return _FakeResp()
+
+    from app import routes_health
+
+    def _reset_probe_state():
+        # Skip TTL cache + reset lock from any previous test run.
+        monkeypatch.setattr(routes_health, "urlopen", fake_urlopen)
+        monkeypatch.setattr(routes_health, "_probe_cache", None)
+        monkeypatch.setattr(routes_health, "_probe_lock", threading.Lock())
+
+    _reset_probe_state()
+    assert routes_health._probe_llm() is True
+    assert captured["auth"] == "Bearer llama.cpp"
+
+    # Env override → next probe uses new key
+    monkeypatch.setenv("LLAMACPP_API_KEY", "sk-other")
+    importlib.reload(cfg)
+    _reset_probe_state()
+    captured.clear()
+    assert routes_health._probe_llm() is True
+    assert captured["auth"] == "Bearer sk-other"
