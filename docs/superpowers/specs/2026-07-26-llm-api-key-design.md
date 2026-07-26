@@ -210,9 +210,9 @@ class LLMSettings(BaseModel):
 
 | 场景 | 行为 |
 |---|---|
-| Admin POST `{"api_key": ""}` | 422 / `InvalidFieldError` (`settings.llm.api_key must be non-empty string`) |
-| Admin POST `{"api_key": null}` | 422（FastAPI Pydantic 拒绝 `null` for `str`，或经 `_validate_section_payload` 的 `isinstance(value, str)` 拒绝） |
-| Admin POST `{"api_key": 123}` | 422 / `InvalidFieldError` (`must be non-empty string`) |
+| Admin POST `{"api_key": ""}` | 400 / `InvalidFieldError` (`settings.llm.api_key must be non-empty string`) |
+| Admin POST `{"api_key": null}` | 400（`SettingsPatch.sections` 是 `dict[str, dict[str, Any]]` 不跑 Pydantic 内层验证，由 `_validate_section_payload` 的 `isinstance(value, str)` 检查拒绝） |
+| Admin POST `{"api_key": 123}` | 400 / `InvalidFieldError` (`must be non-empty string`) |
 | Admin POST `{"api_key": "sk-real"}` | OK；下次 `get_llm()` 即用新 key |
 | `LLAMACPP_API_KEY` 环境变量未设 | `LLMConfig.api_key = "llama.cpp"` |
 | `LLAMACPP_API_KEY=""` （空字符串） | `LLMConfig.api_key = ""` —— 故意不视为「未设」；环境变量里写空串意味着明确清空。前端 admin 设置仍按「非空」校验；CLI 部署时若想用空 key 需绕开 admin settings 直接走环境变量或重启+settings.json。**记录为已知行为**，不修复。 |
