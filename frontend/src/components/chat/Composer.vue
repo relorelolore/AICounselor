@@ -3,7 +3,7 @@
 // 输入区：自适应高度 textarea + 字数统计 + 发送/停止
 // ============================================================================
 
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 
 import { useChatStore } from "../../stores/chat";
 import { MAX_MESSAGE_CHARS } from "../../utils/format";
@@ -12,6 +12,21 @@ const store = useChatStore();
 
 const text = ref("");
 const textarea = ref<HTMLTextAreaElement | null>(null);
+
+// 移动端不显示「Enter 发送 / Shift+Enter 换行」提示（软键盘上无此操作）
+const mobileMedia = window.matchMedia("(max-width: 768px)");
+const isMobile = ref(mobileMedia.matches);
+const onMediaChange = (e: MediaQueryListEvent) => {
+  isMobile.value = e.matches;
+};
+mobileMedia.addEventListener?.("change", onMediaChange);
+onBeforeUnmount(() => mobileMedia.removeEventListener?.("change", onMediaChange));
+
+const placeholder = computed(() =>
+  isMobile.value
+    ? "请输入你的问题…"
+    : "请输入你的问题…（Enter 发送，Shift+Enter 换行）",
+);
 
 const sending = computed(() => store.sending);
 const canSend = computed(() => text.value.trim().length > 0 && !sending.value);
@@ -53,7 +68,7 @@ defineExpose({ focus });
         ref="textarea"
         v-model="text"
         rows="1"
-        placeholder="请输入你的问题…（Enter 发送，Shift+Enter 换行）"
+        :placeholder="placeholder"
         aria-label="输入问题"
         @input="autoSize"
         @keydown="onKeydown"
