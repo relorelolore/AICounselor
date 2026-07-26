@@ -365,3 +365,58 @@ def test_expired_session_returns_401(logged_in, monkeypatch):
     c.execute("UPDATE sessions SET expires_at = 0")
     r = logged_in.get("/api/admin/me")
     assert r.status_code == 401
+
+
+# ----- /settings api_key -----
+
+def test_settings_round_trip_api_key(logged_in, monkeypatch):
+    """PUT → DB → GET → 单例：api_key 端到端走通且热生效。"""
+    import importlib, llm.config as llm_cfg
+
+    # 确保起点干净
+    importlib.reload(llm_cfg)
+    assert llm_cfg.get_llm_settings().api_key == "llama.cpp"
+
+    r = logged_in.put(
+        "/api/admin/settings",
+        json={"sections": {"llm": {"api_key": "sk-test-abc"}}},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["sections"]["llm"]["api_key"] == "sk-test-abc"
+    # Not restart-required (hot-reload).
+    assert "llm.api_key" not in body["restart_required"]
+
+    # GET 回显
+    g = logged_in.get("/api/admin/settings")
+    assert g.status_code == 200
+    assert g.json()["llm"]["api_key"] == "sk-test-abc"
+
+    # 单例 hot-reload
+    assert llm_cfg.get_llm_settings().api_key == "sk-test-abc"
+
+
+def test_settings_api_key_validation_empty_string(logged_in):
+    r = logged_in.put(
+        "/api/admin/settings",
+        json={"sections": {"llm": {"api_key": ""}}},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_settings_api_key_validation_wrong_type(logged_in):
+    r = logged_in.put(
+        "/api/admin/settings",
+        json={"sections": {"llm": {"api_key": 123}}},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_settings_api_key_not_restart_required(logged_in):
+    """只改 api_key 时 restart_required 列表为空。"""
+    r = logged_in.put(
+        "/api/admin/settings",
+        json={"sections": {"llm": {"api_key": "sk-xyz"}}},
+    )
+    assert r.status_code == 200
+    assert r.json()["restart_required"] == []
