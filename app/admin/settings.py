@@ -147,10 +147,15 @@ def update_settings(
     """Validate, persist, and return (new_sections, restart_required_fields).
 
     `restart_required_fields` is a list of "section.field" strings.
+
+    Two-phase: validate every section first (building a pending map), then
+    persist all. If any section fails validation, the whole request is
+    rejected and nothing is written to the DB.
     """
     if not isinstance(sections, dict):
         raise InvalidFieldError("sections must be an object")
-    new_state: dict[str, dict] = {}
+    # --- Phase 1: validate all sections, build pending map (no writes) ---
+    pending: dict[str, dict] = {}
     restart: list[str] = []
     for section, payload in sections.items():
         if section not in SECTIONS:
@@ -158,17 +163,20 @@ def update_settings(
         if not isinstance(payload, dict):
             raise InvalidFieldError(f"{section} payload must be an object")
         _validate_section_payload(section, payload)
-        # Merge with stored.
+        # Merge with stored override (if any). No write happens here.
         existing = db_settings.get(section) or {}
         merged = dict(existing)
         merged.update(payload)
-        new_state[section] = merged
+        pending[section] = merged
         # Tag restart-required fields that appear in this update.
         for field in payload.keys():
             if section in REQUIRES_RESTART and field in REQUIRES_RESTART[section]:
                 restart.append(f"{section}.{field}")
-        # Persist.
+    # --- Phase 2: persist all (no raises after this point) ---
+    new_state: dict[str, dict] = {}
+    for section, merged in pending.items():
         db_settings.set(section, merged, by_username)
+        new_state[section] = merged
     return new_state, restart
 
 

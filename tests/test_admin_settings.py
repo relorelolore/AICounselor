@@ -174,6 +174,22 @@ def test_update_multiple_sections_at_once():
     assert restart == []
 
 
+def test_multi_section_update_is_atomic_on_validation_failure():
+    # Pre-condition: empty DB.
+    assert db_settings.get_all() == {}
+    # First section is valid, second is out of range.
+    with pytest.raises(InvalidFieldError):
+        update_settings(
+            sections={
+                "llm": {"temperature": 0.5},
+                "retrieval": {"k": 999},
+            },
+            by_username="admin",
+        )
+    # No row was persisted for either section.
+    assert db_settings.get_all() == {}
+
+
 def test_partial_update_preserves_other_fields():
     update_settings(sections={"llm": {"temperature": 0.5}}, by_username="admin")
     update_settings(sections={"llm": {"max_tokens": 4096}}, by_username="admin")
