@@ -2,6 +2,19 @@
 
 本地 RAG 驱动的学业辅导员：基于 LangChain + LangGraph + Chroma + bge-m3 + llama.cpp。
 
+## 管理后台
+
+启动服务后访问 `http://localhost:8000/admin/login.html`，使用默认账号 `admin / 147369` 登录。
+
+⚠️ **首次登录后请立即修改默认密码**（`/admin/accounts` → 选中自己 → 改密）。
+
+后台可做：
+- 配置 AI 模型参数（LLM 推理 / 连接 / 检索 / 路径 / Embedding）
+- 触发向量数据库重建索引（前台聊天界面的「重建索引」按钮已迁移至此）
+- 管理多个管理员账号，支持 6 次错误后永久锁定 + 解锁
+
+详细规范见 `docs/superpowers/specs/2026-07-25-admin-backend-design.md`。
+
 ## 功能
 
 - 在 `Documents/` 下放入 PDF/PPT/Word 文档
@@ -43,7 +56,7 @@ bash scripts/run.sh
 - **引用 chips**：模型回答末尾出现的 `[文件名 p.N]` 小芯片，点击后从右侧滑出**参考资料抽屉**（drawer），里面是该条引用对应的文档片段、文件名、页码。
 - 输入区字符计数（`0/4000`）、**发送** / **停止** 切换、Shift+Enter 换行 / Enter 发送。
 - 流式响应中显示**打字指示器**，并在 WS 异常时弹出 toast 提示。
-- **重建索引**按钮：手动触发 Chroma 全量重建（不进侧边栏）。
+- 用户前台**不含**「重建索引」按钮（已迁移到管理后台 `/admin/index.html`）。
 
 ### 持久化
 

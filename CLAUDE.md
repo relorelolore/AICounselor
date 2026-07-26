@@ -34,14 +34,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 包 | 职责 |
 |---|---|
 | `app/` | FastAPI 入口；`main.py` 装配、`routes_*.py` 路由、`schemas.py` Pydantic 模型 |
+| `app/admin/` | 管理后台路由（`routes.py`）+ 业务逻辑（`auth.py` / `accounts.py` / `settings.py` / `reindex.py`）+ Pydantic schemas |
 | `agent/` | LangGraph ReAct Agent + 状态 + 工具；`graph.py` 装配（`create_react_agent` + `build_search_documents_tool`）、`tools.py` 工具工厂、`prompts.py` 系统提示 + `format_docs_as_text` |
 | `rag/` | 文档加载（PDF/PPTX/DOCX）、中文感知切分、Chroma retriever、bge-m3 embeddings、citation 格式化 |
 | `ingest/` | 索引构建器 + `python -m ingest` CLI |
 | `llm/` | OpenAI 兼容客户端指向 llama.cpp |
-| `storage/` | 路径常量（`paths.py`），所有磁盘位置经此模块 |
-| `web/` | 原生 HTML+JS+CSS 单页 Chat UI |
+| `storage/` | 路径常量（`paths.py`）+ SQLite admin 持久化（`admin_db.py` → `data/admin.db`） |
+| `web/` | 原生 HTML+JS+CSS 单页 Chat UI；`web/admin/` 是独立管理 SPA（登录 + dashboard/accounts/settings 3 页 + 共享 css/js） |
 
 `storage/paths.py` 是所有磁盘路径的单一来源；不要散落 hardcode。
+
+## 管理后台（admin subsystem）
+
+- 后台入口：`/admin/login.html`（**不在用户前台显示入口**）；默认账号 `admin / 147369`，首次登录后**必须**改密。
+- 后端：`app/admin/` 包（auth / accounts / settings / reindex / routes / schemas）；SQLite 持久化在 `storage/admin_db.py` → 单文件 `data/admin.db`（WAL + `threading.RLock`）。
+- 路由：`/api/admin/{login,logout,me,accounts,settings,reindex,reindex/last}`；session cookie `counselor_admin`（HttpOnly + SameSite=Lax + 24h 滑动续期）。
+- 锁定策略：6 次错误后**永久**锁定，必须其他管理员手动解锁。
+- 可调参数分两类：热生效（`temperature/max_tokens/top_p/penalties/k/chunk_*`）和需重启（`base_url/model_name/timeout/paths/embedding.model`）；`PUT /api/admin/settings` 返回的 `restart_required` 字段列出后者。
+- 前端：`web/admin/` 4 个独立 HTML 页面 + 共享 `admin.css` / `admin.js`；无 npm、无构建。
+- 用户前台去掉了「重建索引」按钮（迁移至后台），`/api/ingest` 已删除（重建索引仅走 `POST /api/admin/reindex`）。
+- `llm/config.py` / `rag/retriever.py` / `rag/splitter.py` 改为从运行时单例读配置，支持热生效字段的下一次请求即时生效。
+- 修改 `web/admin/admin.js` 或 `web/admin/*.html` 时同样按需 bump `<script src="admin.js?v=N">`（当前 `?v=1`，与用户 SPA 的 `?v=12` 互相独立计数）。
 
 ## 前端架构（`web/`）
 
