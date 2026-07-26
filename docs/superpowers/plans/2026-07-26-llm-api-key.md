@@ -208,6 +208,9 @@ git commit -m "feat(llm): client.py uses configured api_key (was hardcoded \"not
 在 `tests/test_api.py` 末尾新增：
 
 ```python
+import threading
+
+
 def test_health_probe_sends_authorization(monkeypatch):
     """_probe_llm 必须在 GET /v1/models 上带 Authorization: Bearer <key>。"""
     import importlib
@@ -225,20 +228,21 @@ def test_health_probe_sends_authorization(monkeypatch):
         return _FakeResp()
 
     from app import routes_health
-    monkeypatch.setattr(routes_health, "urlopen", fake_urlopen)
-    # Skip TTL cache from previous test runs.
-    monkeypatch.setattr(routes_health, "_probe_cache", None)
-    monkeypatch.setattr(routes_health, "_probe_lock", __import__("threading").Lock())
 
+    def _reset_probe_state():
+        # Skip TTL cache + reset lock from any previous test run.
+        monkeypatch.setattr(routes_health, "urlopen", fake_urlopen)
+        monkeypatch.setattr(routes_health, "_probe_cache", None)
+        monkeypatch.setattr(routes_health, "_probe_lock", threading.Lock())
+
+    _reset_probe_state()
     assert routes_health._probe_llm() is True
     assert captured["auth"] == "Bearer llama.cpp"
 
     # Env override → next probe uses new key
     monkeypatch.setenv("LLAMACPP_API_KEY", "sk-other")
     importlib.reload(cfg)
-    monkeypatch.setattr(routes_health, "urlopen", fake_urlopen)
-    monkeypatch.setattr(routes_health, "_probe_cache", None)
-    monkeypatch.setattr(routes_health, "_probe_lock", __import__("threading").Lock())
+    _reset_probe_state()
     captured.clear()
     assert routes_health._probe_llm() is True
     assert captured["auth"] == "Bearer sk-other"
