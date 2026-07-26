@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light" />
 <title>仪表盘 · 管理后台</title>
-<link rel="stylesheet" href="admin.css?v=1" />
+<link rel="stylesheet" href="admin.css?v=2" />
 </head>
 <body>
 <nav class="admin-nav">
@@ -144,7 +144,7 @@ function renderResult(r) {
     html += '<table class="admin-table"><tr><th>文件</th><th>状态</th><th>详情</th></tr>';
     for (const it of r.items) {
       const det = it.chunks != null ? `${it.chunks} chunks` : (it.reason || it.error || "");
-      html += `<tr><td>${escapeHtml(it.path)}</td><td>${it.status}</td><td>${escapeHtml(String(det))}</td></tr>`;
+      html += `<tr><td>${escapeHtml(it.path)}</td><td>${escapeHtml(it.status)}</td><td>${escapeHtml(String(det))}</td></tr>`;
     }
     html += "</table>";
   }

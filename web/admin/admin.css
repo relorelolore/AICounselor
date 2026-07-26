@@ -165,6 +165,9 @@ table.admin-table th { background: #f9fafb; font-weight: 600; }
 }
 #toast.hidden { display: none; }
 
+/* generic utility */
+.hidden { display: none !important; }
+
 /* login page */
 .login-wrap {
   min-height: 100vh;
