@@ -7,7 +7,7 @@ from urllib.request import Request, urlopen
 
 from fastapi import APIRouter
 
-from llm.config import LLAMACPP_BASE_URL, get_llm_settings
+from llm.config import get_llm_settings
 from rag.retriever import collection_count
 
 from .schemas import HealthResponse
@@ -21,16 +21,21 @@ _probe_lock = Lock()
 
 
 def _probe_llm() -> bool:
-    """Quick HTTP probe of the llama.cpp /v1/models endpoint.
+    """Quick HTTP probe of the LLM upstream /v1/models endpoint.
+
+    Reads BOTH `base_url` and `api_key` from the runtime singleton so that
+    the probe reflects whatever the admin just configured (no restart needed).
+    This matches `llm/client.py::get_llm()`, which also reads from the
+    singleton — the probe and chat route are now consistent.
 
     Sends Authorization: Bearer <api_key> so authenticated OpenAI-compatible
-    proxies (OpenAI / Azure / etc.) also probe green; llama.cpp ignores the
-    header.
+    proxies (OpenAI / Azure / MiniMax / etc.) probe green; llama.cpp ignores
+    the header.
     """
-    api_key = get_llm_settings().api_key
+    s = get_llm_settings()
     req = Request(
-        f"{LLAMACPP_BASE_URL.rstrip('/')}/models",
-        headers={"Authorization": f"Bearer {api_key}"},
+        f"{s.base_url.rstrip('/')}/models",
+        headers={"Authorization": f"Bearer {s.api_key}"},
     )
     try:
         with urlopen(req, timeout=2.0) as response:
