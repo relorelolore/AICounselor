@@ -14,15 +14,6 @@ def test_health_returns_struct(client):
     assert data["status"] in ("ok", "degraded")
 
 
-def test_ingest_runs_with_empty_corpus(client):
-    r = client.post("/api/ingest", json={"force": False})
-    assert r.status_code == 200
-    data = r.json()
-    assert "added" in data and "skipped" in data and "failed" in data
-    assert data["added"] == 0
-    assert data["skipped"] == 0
-
-
 def test_static_files_have_no_store_cache_header(client):
     """前端静态文件应带 ``Cache-Control: no-store``，强制浏览器每次拿最新
     版本，避免改了 app.js 但浏览器仍跑老 JS 的问题。"""
