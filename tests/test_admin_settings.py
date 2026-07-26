@@ -34,9 +34,10 @@ def test_sections_are_the_four_expected():
 
 def test_defaults_contain_every_field():
     assert set(DEFAULTS["llm"].keys()) == {
-        "base_url", "model_name", "temperature", "max_tokens", "timeout",
+        "base_url", "model_name", "api_key", "temperature", "max_tokens", "timeout",
         "top_p", "frequency_penalty", "presence_penalty",
     }
+    assert DEFAULTS["llm"]["api_key"] == "llama.cpp"
     assert set(DEFAULTS["retrieval"].keys()) == {"k", "chunk_size", "chunk_overlap"}
     assert set(DEFAULTS["paths"].keys()) == {
         "documents_dir", "data_dir", "chroma_collection",
