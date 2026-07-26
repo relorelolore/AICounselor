@@ -48,3 +48,16 @@ def test_admin_routes_serve_html_pages():
             r = c.get(f"/admin/{name}.html")
             assert r.status_code == 200, f"/admin/{name}.html returned {r.status_code}"
             assert "<html" in r.text.lower()
+
+
+def test_admin_js_supports_redirect_on_401_option():
+    """admin.js api() must support a redirectOn401 option so the login page
+    pre-check can suppress the redirect (avoids an infinite reload loop for
+    unauthenticated users on /admin/login.html)."""
+    text = (ADMIN_WEB_DIR / "admin.js").read_text(encoding="utf-8")
+    assert "redirectOn401" in text, "admin.js missing redirectOn401 option"
+    # The login page pre-check must explicitly opt out of the redirect.
+    login_text = (ADMIN_WEB_DIR / "login.html").read_text(encoding="utf-8")
+    assert "redirectOn401: false" in login_text, (
+        "login.html pre-check must pass redirectOn401: false"
+    )

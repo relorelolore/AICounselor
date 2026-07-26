@@ -21,6 +21,10 @@ function toast(text, ms = 2500) {
 }
 
 async function api(path, options = {}) {
+  // By default, api() bounces the browser to /admin/login.html on 401.
+  // Callers that already live on the login page (or are pre-checking auth)
+  // should pass { redirectOn401: false } to avoid a reload loop.
+  const redirectOn401 = options.redirectOn401 !== false;
   const opts = {
     credentials: "include",
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -31,9 +35,11 @@ async function api(path, options = {}) {
   }
   const r = await fetch(ADMIN_BASE + path, opts);
   if (r.status === 401) {
-    // Session expired; bounce to login.
-    window.location.href = "/admin/login.html";
-    throw new Error("unauthenticated");
+    if (redirectOn401) {
+      // Session expired; bounce to login.
+      window.location.href = "/admin/login.html";
+    }
+    throw Object.assign(new Error("unauthenticated"), { status: 401 });
   }
   if (!r.ok) {
     let detail = r.statusText;

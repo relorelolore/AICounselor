@@ -24,7 +24,7 @@
   </form>
 </div>
 <div id="toast" class="hidden"></div>
-<script src="admin.js?v=1"></script>
+<script src="admin.js?v=2"></script>
 <script>
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -45,8 +45,9 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
     btn.disabled = false;
   }
 });
-api("/me").then(() => { window.location.href = "/admin/index.html"; })
-           .catch(() => { /* expected — show form */ });
+api("/me", { redirectOn401: false })
+    .then(() => { window.location.href = "/admin/index.html"; })
+    .catch(() => { /* expected — show form */ });
 </script>
 </body>
 </html>
