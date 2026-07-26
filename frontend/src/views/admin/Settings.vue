@@ -29,6 +29,7 @@ interface SettingsForm {
   llm: {
     base_url: string;
     model_name: string;
+    api_key: string;
     temperature: Num;
     max_tokens: Num;
     timeout: Num;
@@ -46,6 +47,7 @@ const form = reactive<SettingsForm>({
   llm: {
     base_url: "",
     model_name: "",
+    api_key: "",
     temperature: null,
     max_tokens: null,
     timeout: null,
@@ -107,7 +109,7 @@ const groupLlmParams: GroupDef = {
 const groupLlmConn: GroupDef = {
   id: "llm-conn",
   section: "llm",
-  fields: [{ key: "base_url" }, { key: "model_name" }, { key: "timeout", numeric: true }],
+  fields: [{ key: "api_key" }, { key: "base_url" }, { key: "model_name" }, { key: "timeout", numeric: true }],
 };
 
 const groupRetrieval: GroupDef = {
@@ -270,6 +272,14 @@ async function saveGroup(group: GroupDef) {
           <n-form label-placement="left" :label-width="210">
             <n-form-item label="Base URL">
               <n-input v-model:value="form.llm.base_url" placeholder="https://api.example.com/v1" />
+            </n-form-item>
+            <n-form-item label="API key">
+              <n-input
+                v-model:value="form.llm.api_key"
+                type="password"
+                show-password-on="click"
+                placeholder="llama.cpp（本地默认）"
+              />
             </n-form-item>
             <n-form-item label="Model name">
               <n-input v-model:value="form.llm.model_name" placeholder="模型名称" />

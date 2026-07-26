@@ -75,6 +75,7 @@ export interface AdminSettings {
   llm: {
     base_url: string;
     model_name: string;
+    api_key: string;
     temperature: number;
     max_tokens: number;
     timeout: number;
