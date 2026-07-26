@@ -8,12 +8,17 @@
 
 ## §1. 架构总览
 
-数据流不变；只在 LLM 客户端构造点和 `/api/health` 探针处新增 `Authorization: Bearer <key>` 头。
+数据流不变；改两点：
+- `get_llm()` 把硬编码 `api_key="not-needed"` 换成 `cfg.api_key`（`ChatOpenAI` 内部自动加 `Authorization: Bearer <key>` 头）。
+- `_probe_llm()` 显式给 `urllib.request.Request` 加 `Authorization: Bearer <key>` 头（裸 `urlopen` 不能传 header）。
 
 ```
 Browser
-  ├─ WS chat ───► app/routes_chat.py ───► llm/client.py::get_llm() ──► ChatOpenAI(api_key=cfg.api_key) ──► upstream LLM
-  └─ GET /api/health ──► app/routes_health.py::_probe_llm() ──► urllib GET /v1/models
+  ├─ WS chat ───► app/routes_chat.py ───► llm/client.py::get_llm() ──► ChatOpenAI(api_key=cfg.api_key)
+  │                                                                              │ (langchain-openai 隐式加)
+  │                                                                              ▼
+  │                                                                       upstream LLM
+  └─ GET /api/health ──► app/routes_health.py::_probe_llm() ──► urllib Request GET /v1/models
                                                                        Authorization: Bearer <cfg.api_key>
 
 Admin SPA ─► PUT /api/admin/settings ──► app/admin/settings.py::update_settings()
@@ -104,12 +109,12 @@ def get_llm(*, streaming: bool = True) -> ChatOpenAI:
 ```python
 from urllib.request import Request, urlopen
 
-from llm.config import get_llm_settings
+from llm.config import LLAMACPP_BASE_URL, get_llm_settings
 
 def _probe_llm() -> bool:
     api_key = get_llm_settings().api_key
     req = Request(
-        f"{get_llm_settings().base_url.rstrip('/')}/models",
+        f"{LLAMACPP_BASE_URL.rstrip('/')}/models",   # 沿用模块级常量，不跟随 admin hot-reload
         headers={"Authorization": f"Bearer {api_key}"},
     )
     try:
@@ -122,7 +127,7 @@ def _probe_llm() -> bool:
 - 改裸 `urlopen(url)` → `urlopen(Request(url, headers={...}))`。
 - 本地 llama.cpp 不校验 token，多发一个 `Authorization` 头是无害的（服务端会忽略）。
 - 对 OpenAI / Azure OpenAI / 其他需鉴权的 OpenAI 兼容代理：探活才能返回 200，避免 `/api/health` 永远报 `degraded`。
-- **不**把模块级 `LLAMACPP_BASE_URL` 改成调用 `get_llm_settings().base_url`（虽然这样做能跟随 admin 改动，但会扩大本次 PR 范围且与现有 admin 文档「base_url 改完需重启」的约定冲突；保留原样）。
+- `base_url` 仍走模块级 `LLAMACPP_BASE_URL`（import-time 捕获，不跟随 admin hot-reload），与现有 admin 文档「`base_url` 改完需重启」约定一致；**仅** `api_key` 走 `get_llm_settings()`，因为 api_key 是热生效字段。
 
 ---
 
