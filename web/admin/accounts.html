@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light" />
-<title>账号 · AI 辅导员管理后台</title>
+<title>账号 · 管理后台</title>
 <link rel="stylesheet" href="admin.css?v=2" />
 </head>
 <body>
@@ -14,15 +14,228 @@
   <a href="/admin/accounts.html">账号</a>
   <a href="/admin/settings.html">设置</a>
   <span class="spacer"></span>
-  <span class="user" id="user"></span>
-  <button id="logout">登出</button>
+  <span class="user" id="nav-user"></span>
+  <button id="logout" type="button">退出</button>
 </nav>
 <main class="admin-main">
+  <div style="display: flex; align-items: center; margin-bottom: 12px;">
+    <h1 style="margin: 0; flex: 1;">管理员账号</h1>
+    <button id="add-btn" type="button" class="primary">+ 新增管理员</button>
+  </div>
   <div class="card">
-    <h2>账号管理</h2>
-    <p>占位页面 — 将在 Task 11 填充。</p>
+    <table class="admin-table" id="accounts-table">
+      <thead><tr><th>用户名</th><th>创建时间</th><th>最后登录</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </div>
 </main>
+
+<div id="add-backdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <h3>新增管理员</h3>
+    <div class="field" style="margin-bottom: 10px;">
+      <label>用户名（3-32，[a-z0-9_-]）</label>
+      <input id="add-username" type="text" />
+    </div>
+    <div class="field" style="margin-bottom: 10px;">
+      <label>密码（至少 6 字符）</label>
+      <input id="add-password" type="password" />
+    </div>
+    <div class="field" style="margin-bottom: 14px;">
+      <label>确认密码</label>
+      <input id="add-password2" type="password" />
+    </div>
+    <div class="actions">
+      <button id="add-cancel" type="button">取消</button>
+      <button id="add-ok" type="button" class="primary">创建</button>
+    </div>
+  </div>
+</div>
+
+<div id="edit-backdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <h3>修改密码</h3>
+    <div class="field" style="margin-bottom: 10px;">
+      <label>用户名</label>
+      <input id="edit-username" type="text" disabled />
+    </div>
+    <div class="field" id="edit-old-wrap" style="margin-bottom: 10px;">
+      <label>原密码（修改自己时必填）</label>
+      <input id="edit-old" type="password" />
+    </div>
+    <div class="field" style="margin-bottom: 10px;">
+      <label>新密码（至少 6 字符）</label>
+      <input id="edit-new" type="password" />
+    </div>
+    <div class="field" style="margin-bottom: 14px;">
+      <label>确认新密码</label>
+      <input id="edit-new2" type="password" />
+    </div>
+    <div class="actions">
+      <button id="edit-cancel" type="button">取消</button>
+      <button id="edit-ok" type="button" class="primary">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="del-backdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <h3>确认删除</h3>
+    <p id="del-message"></p>
+    <div class="actions">
+      <button id="del-cancel" type="button">取消</button>
+      <button id="del-ok" type="button" class="danger">删除</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
 <script src="admin.js?v=2"></script>
+<script>
+let currentMe = null;
+let accountsCache = [];
+let editTargetId = null;
+let delTargetId = null;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function init() {
+  const me = await requireAdmin();
+  if (!me) return;
+  currentMe = me;
+  document.getElementById("nav-user").textContent = me.username;
+  document.getElementById("logout").addEventListener("click", async () => {
+    try { await api("/logout", { method: "POST" }); } catch (_) {}
+    location.href = "/admin/login.html";
+  });
+  await refresh();
+  wireModals();
+}
+
+async function refresh() {
+  try { accountsCache = await api("/accounts"); } catch (_) { return; }
+  const tbody = document.querySelector("#accounts-table tbody");
+  tbody.innerHTML = "";
+  for (const a of accountsCache) {
+    const tr = document.createElement("tr");
+    const status = a.locked
+      ? '<span class="status-locked">已锁定</span>'
+      : '<span class="status-ok">正常</span>';
+    const created = new Date(a.created_at * 1000).toLocaleString();
+    const last = a.last_login_at ? new Date(a.last_login_at * 1000).toLocaleString() : "—";
+    const isSelf = a.username === currentMe.username;
+    tr.innerHTML = `
+      <td>${escapeHtml(a.username)}${isSelf ? ' <small style="color:var(--fg-muted)">(当前)</small>' : ""}</td>
+      <td>${created}</td>
+      <td>${last}</td>
+      <td>${status}</td>
+      <td>
+        <button data-act="edit" data-id="${a.id}">改密</button>
+        ${a.locked ? `<button data-act="unlock" data-id="${a.id}">解锁</button>` : ""}
+        <button data-act="del" data-id="${a.id}" data-name="${escapeHtml(a.username)}" class="danger">删除</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+  for (const btn of tbody.querySelectorAll("button")) {
+    btn.addEventListener("click", onAction);
+  }
+}
+
+function onAction(e) {
+  const id = e.target.dataset.id;
+  const act = e.target.dataset.act;
+  if (act === "edit") openEdit(id);
+  else if (act === "del") openDelete(id, e.target.dataset.name);
+  else if (act === "unlock") doUnlock(id);
+}
+
+async function doUnlock(id) {
+  try {
+    await api(`/accounts/${id}`, { method: "PATCH", body: { unlock: true } });
+    toast("已解锁");
+    await refresh();
+  } catch (e) { toast(e.message); }
+}
+
+function wireModals() {
+  document.getElementById("add-btn").addEventListener("click", () => {
+    document.getElementById("add-backdrop").classList.remove("hidden");
+    document.getElementById("add-username").focus();
+  });
+  document.getElementById("add-cancel").addEventListener("click", closeAdd);
+  document.getElementById("add-ok").addEventListener("click", async () => {
+    const u = document.getElementById("add-username").value.trim();
+    const p1 = document.getElementById("add-password").value;
+    const p2 = document.getElementById("add-password2").value;
+    if (p1 !== p2) return toast("两次密码不一致");
+    try {
+      await api("/accounts", { method: "POST", body: { username: u, password: p1 } });
+      toast("已创建");
+      closeAdd();
+      await refresh();
+    } catch (e) { toast(e.message); }
+  });
+  document.getElementById("edit-cancel").addEventListener("click", closeEdit);
+  document.getElementById("edit-ok").addEventListener("click", async () => {
+    const p1 = document.getElementById("edit-new").value;
+    const p2 = document.getElementById("edit-new2").value;
+    const old = document.getElementById("edit-old").value;
+    if (p1 !== p2) return toast("两次密码不一致");
+    const body = { new_password: p1 };
+    if (old) body.old_password = old;
+    try {
+      await api(`/accounts/${editTargetId}`, { method: "PATCH", body });
+      toast("已保存");
+      closeEdit();
+      await refresh();
+    } catch (e) { toast(e.message); }
+  });
+  document.getElementById("del-cancel").addEventListener("click", closeDel);
+  document.getElementById("del-ok").addEventListener("click", async () => {
+    try {
+      await api(`/accounts/${delTargetId}`, { method: "DELETE" });
+      toast("已删除");
+      closeDel();
+      await refresh();
+    } catch (e) { toast(e.message); }
+  });
+}
+
+function closeAdd() {
+  document.getElementById("add-backdrop").classList.add("hidden");
+  document.getElementById("add-username").value = "";
+  document.getElementById("add-password").value = "";
+  document.getElementById("add-password2").value = "";
+}
+function closeEdit() {
+  document.getElementById("edit-backdrop").classList.add("hidden");
+  editTargetId = null;
+}
+function openEdit(id) {
+  editTargetId = id;
+  const a = accountsCache.find((x) => x.id === id);
+  if (!a) return;
+  document.getElementById("edit-username").value = a.username;
+  document.getElementById("edit-old").value = "";
+  document.getElementById("edit-new").value = "";
+  document.getElementById("edit-new2").value = "";
+  const isSelf = a.username === currentMe.username;
+  document.getElementById("edit-old-wrap").style.display = isSelf ? "block" : "none";
+  document.getElementById("edit-backdrop").classList.remove("hidden");
+}
+function openDelete(id, name) {
+  delTargetId = id;
+  document.getElementById("del-message").textContent = `确认删除账号 ${name}？此操作不可撤销。`;
+  document.getElementById("del-backdrop").classList.remove("hidden");
+}
+function closeDel() {
+  document.getElementById("del-backdrop").classList.add("hidden");
+  delTargetId = null;
+}
+
+init();
+</script>
 </body>
 </html>
