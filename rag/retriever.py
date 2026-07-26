@@ -1,3 +1,4 @@
+# rag/retriever.py
 from __future__ import annotations
 
 import os
@@ -5,6 +6,8 @@ from functools import lru_cache
 
 from langchain_chroma import Chroma
 from langchain_core.vectorstores import VectorStoreRetriever
+
+from llm.config import get_rag_settings
 
 from .embeddings import get_embeddings
 
@@ -30,10 +33,11 @@ def get_chroma() -> Chroma:
     )
 
 
-def get_retriever(*, k: int = 6) -> VectorStoreRetriever:
+def get_retriever(*, k: int | None = None) -> VectorStoreRetriever:
+    effective_k = k if k is not None else get_rag_settings().k
     return get_chroma().as_retriever(
         search_type="similarity",
-        search_kwargs={"k": k},
+        search_kwargs={"k": effective_k},
     )
 
 

@@ -196,3 +196,45 @@ def test_partial_update_preserves_other_fields():
     stored = db_settings.get("llm")
     assert stored["temperature"] == 0.5
     assert stored["max_tokens"] == 4096
+
+
+# ---- Part B: hot-reload propagation ----
+
+from llm import config as llm_config
+from llm.client import get_llm
+from rag.retriever import get_retriever
+
+
+def test_get_llm_uses_current_settings_each_call(monkeypatch):
+    llm_config.update_llm_settings({"temperature": 0.5})
+    llm1 = get_llm(streaming=False)
+    llm_config.update_llm_settings({"temperature": 0.9})
+    llm2 = get_llm(streaming=False)
+    assert llm1.temperature == 0.5
+    assert llm2.temperature == 0.9
+
+
+def test_get_retriever_uses_rag_k_each_call(monkeypatch):
+    llm_config.update_rag_settings({"k": 6})
+    r1 = get_retriever()
+    llm_config.update_rag_settings({"k": 12})
+    r2 = get_retriever()
+    assert r1.search_kwargs["k"] == 6
+    assert r2.search_kwargs["k"] == 12
+
+
+def test_get_retriever_explicit_k_overrides():
+    llm_config.update_rag_settings({"k": 6})
+    r = get_retriever(k=20)
+    assert r.search_kwargs["k"] == 20
+
+
+def test_update_settings_unknown_field_raises():
+    with pytest.raises(ValueError):
+        llm_config.update_llm_settings({"nonexistent": 1})
+
+
+def test_reset_settings_for_tests_restores_defaults(monkeypatch):
+    monkeypatch.setenv("TEMPERATURE", "0.42")
+    llm_config.reset_settings_for_tests()
+    assert llm_config.get_llm_settings().temperature == 0.42
