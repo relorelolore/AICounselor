@@ -109,6 +109,7 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 | pnpm 11 构建脚本白名单 | `package.json` 的 `pnpm.onlyBuiltDependencies` 在 pnpm 11 失效（esbuild postinstall 被拦 → vite 起不来）。必须写 `frontend/pnpm-workspace.yaml` 的 `allowBuilds: { esbuild: true }`（旧键名保留兼容 pnpm ≤10）。 |
 | Node ≥22 自带 `localStorage` | Node 26 全局 `localStorage`（未配 `--localstorage-file` 时恒 undefined）会遮蔽 vitest jsdom 环境的实现（populateGlobal 跳过已存在于 global 的键）。`src/test-setup.ts` 用内存 Storage 显式替换。 |
 | SPA fallback 抓不到 404 | `StaticFiles` 抛的是 **starlette** 的 `HTTPException`，catch `fastapi.HTTPException`（子类）抓不到 → `/admin` 直达 404。`app/static_no_store.py` 必须 catch `starlette.exceptions.HTTPException`。 |
+| 模型 native CoT 不显示 | Qwen / DeepSeek / MiniMax / Anthropic 风格等模型会输出 `<think>` / `<reasoning>` / `<analysis>` / `<scratchpad>` / `<thinking>` / `<reflection>` / `<plan>` / `<\|reasoning\|>` 等思考段；`app/routes_chat.py::_strip_reasoning` 默认 strip。调试时 WS 请求加 `show_reasoning: true`（前端 chat URL `?debug=reasoning` 自动启用）或扩展 `_REASONING_PAIRS` 支持新模型格式。 |
 
 ## 环境变量（`llm/config.py` + `storage/paths.py` + 各模块）
 

@@ -1,6 +1,9 @@
 // ============================================================================
 // WebSocket 聊天客户端 —— 协议与后端 app/routes_chat.py 严格对应：
-//   首帧发送 { session_id, history }；服务端回 token / citation / done / error。
+//   首帧发送 { session_id, history, show_reasoning? }；
+//   服务端回 token / citation / done / error。
+//   `show_reasoning` 由 chat URL `?debug=reasoning` 触发：保留模型 native CoT
+//   （<think>/<reasoning>/<analysis>/…），便于调试；默认 strip。
 // ============================================================================
 
 import type { Citation, WsHistoryItem, WsServerEvent } from "../types";
@@ -17,6 +20,14 @@ export interface ChatWsConnection {
 }
 
 const CONNECT_TIMEOUT_MS = 90_000;
+
+/** Read `?debug=reasoning` (or `?debug=1`) from the current URL once. */
+export function debugShowReasoning(): boolean {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  const v = q.get("debug");
+  return v === "reasoning" || v === "1";
+}
 
 export function connectChatWs(
   sessionId: string,
@@ -46,7 +57,9 @@ export function connectChatWs(
 
   ws.onopen = () => {
     try {
-      ws.send(JSON.stringify({ session_id: sessionId, history }));
+      const payload: Record<string, unknown> = { session_id: sessionId, history };
+      if (debugShowReasoning()) payload.show_reasoning = true;
+      ws.send(JSON.stringify(payload));
     } catch (e) {
       finish();
       handlers.onError("发送失败：" + e);

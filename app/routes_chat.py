@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import traceback
 import uuid
 
@@ -25,6 +26,41 @@ _MAX_HISTORY_CHARS = 4000 * 4  # 16 000 chars
 
 
 _VALID_ROLES = {"user", "assistant"}
+
+
+# Native chain-of-thought / reasoning delimiters used by Qwen, DeepSeek,
+# MiniMax, Anthropic-style and various OSS models. Each pair is matched
+# non-greedy with DOTALL (cross-line). Missing close tag is NOT deleted
+# (regex requires a pair) so we never silently lose content. Add new pairs
+# here as new model families appear.
+_REASONING_PAIRS: tuple[tuple[str, str], ...] = (
+    ("<think>", "</think>"),
+    ("<reasoning>", "</reasoning>"),
+    ("<|reasoning|>", "</|reasoning|>"),
+    ("<reflection>", "</reflection>"),
+    ("<analysis>", "</analysis>"),
+    ("<scratchpad>", "</scratchpad>"),
+    ("<thinking>", "</thinking>"),
+    ("<plan>", "</plan>"),
+)
+
+_REASONING_RE = re.compile(
+    "|".join(re.escape(o) + r".*?" + re.escape(c) for o, c in _REASONING_PAIRS),
+    re.DOTALL,
+)
+
+
+def _strip_reasoning(content: str, *, show: bool) -> str:
+    """Remove native CoT / reasoning blocks from a model's reply.
+
+    `show=False` (default) strips all configured reasoning delimiters and
+    surrounding whitespace, so ordinary users never see the model's internal
+    monologue. `show=True` returns the content unchanged — used when the WS
+    caller passes `show_reasoning: true` for admin debugging.
+    """
+    if show:
+        return content
+    return _REASONING_RE.sub("", content).strip()
 
 
 def _validate_session_id(s: str) -> bool:
@@ -100,6 +136,7 @@ async def chat(ws: WebSocket) -> None:
         payload = json.loads(raw)
         session_id = str(payload.get("session_id", ""))
         history = payload.get("history")
+        show_reasoning = bool(payload.get("show_reasoning", False))
 
         if not _validate_session_id(session_id):
             await ws.send_text(ErrorEvent(data="invalid session_id").model_dump_json())
@@ -124,7 +161,8 @@ async def chat(ws: WebSocket) -> None:
                 m for m in final_state["messages"] if isinstance(m, AIMessage)
             ]
             if ai_messages:
-                ai_content = ai_messages[-1].content or ""
+                ai_content_raw = ai_messages[-1].content or ""
+                ai_content = _strip_reasoning(ai_content_raw, show=show_reasoning)
                 if ai_content:
                     await ws.send_text(json.dumps(
                         {"event": "token", "data": ai_content}, ensure_ascii=False))
