@@ -34,6 +34,12 @@ def _check_origin(request: Request) -> None:
     """Reject mutating requests from disallowed origins (CSRF defense).
 
     GET/HEAD/OPTIONS are exempt.
+
+    Origin is allowed if it matches either:
+      (a) `COUNSELOR_ALLOWED_ORIGIN` env var (default `http://localhost:8000`), or
+      (b) the request's own Host header (`http://<host>:<port>`) — this handles
+          browsers that connect via `127.0.0.1` / `localhost` / LAN IP / etc.
+          without requiring the admin to set the env var per host.
     """
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return
@@ -43,8 +49,15 @@ def _check_origin(request: Request) -> None:
         # but for a JSON API with credentials=include, Origin is required.
         # We choose to be strict and reject.
         raise HTTPException(status_code=403, detail="origin header required")
-    if origin.rstrip("/") != _ALLOWED_ORIGIN.rstrip("/"):
-        raise HTTPException(status_code=403, detail="origin not allowed")
+    candidate = origin.rstrip("/")
+    # (a) explicit env-var allow-list
+    if candidate == _ALLOWED_ORIGIN.rstrip("/"):
+        return
+    # (b) same-host: the browser's Origin host:port must match the request's Host
+    host = request.headers.get("host")
+    if host and candidate == f"http://{host}":
+        return
+    raise HTTPException(status_code=403, detail="origin not allowed")
 
 
 async def require_session(request: Request) -> dict:

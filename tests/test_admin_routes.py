@@ -301,6 +301,38 @@ def test_reindex_last_returns_null_before_any_run(logged_in):
 
 # ----- CSRF / Origin -----
 
+def test_post_with_origin_matching_request_host_allowed(logged_in, monkeypatch):
+    """Origin that matches the request's Host header is allowed even when
+    the env-var _ALLOWED_ORIGIN differs (covers localhost/127.0.0.1/LAN-IP
+    access without per-host env config)."""
+    from app.admin import reindex
+    monkeypatch.setattr(reindex, "build_index",
+                        lambda *, force=False: {"added": 0, "skipped": 0,
+                                                 "failed": [], "items": [],
+                                                 "meta_written": True})
+    r = logged_in.post(
+        "/api/admin/reindex",
+        json={"force": False},
+        headers={"Origin": "http://testserver", "Host": "testserver"},
+    )
+    assert r.status_code == 200
+
+
+def test_post_with_origin_mismatching_host_rejected(logged_in, monkeypatch):
+    """Origin whose host:port differs from request Host is rejected."""
+    from app.admin import reindex
+    monkeypatch.setattr(reindex, "build_index",
+                        lambda *, force=False: {"added": 0, "skipped": 0,
+                                                 "failed": [], "items": [],
+                                                 "meta_written": True})
+    r = logged_in.post(
+        "/api/admin/reindex",
+        json={"force": False},
+        headers={"Origin": "http://evil.example.com", "Host": "testserver"},
+    )
+    assert r.status_code == 403
+
+
 def test_post_with_wrong_origin_rejected(logged_in, monkeypatch):
     from app.admin import reindex
     monkeypatch.setattr(reindex, "build_index",
