@@ -158,7 +158,7 @@ _STR_FIELDS: set[tuple[str, str]] = {
 }
 ```
 
-校验规则：非空字符串（与 `base_url` 一致）。空串 → `InvalidFieldError` → 422。
+校验规则：非空字符串（与 `base_url` 一致）。空串 → `InvalidFieldError` → 400（路由 `app/admin/routes.py:239-240` 显式映射为 400）。
 
 ### `REQUIRES_RESTART["llm"]`
 
@@ -259,9 +259,9 @@ class LLMSettings(BaseModel):
   - `GET /api/admin/settings` 断言回 `"sk-test-abc"`
   - `from llm.config import get_llm_settings; assert get_llm_settings().api_key == "sk-test-abc"`
 - **新增** `test_api_key_validation_empty`：
-  - `PUT /api/admin/settings {"sections": {"llm": {"api_key": ""}}}` → 422
+  - `PUT /api/admin/settings {"sections": {"llm": {"api_key": ""}}}` → 400（与既有 `test_put_settings_invalid_value_returns_400` 同契约）
 - **新增** `test_api_key_validation_wrong_type`：
-  - `PUT /api/admin/settings {"sections": {"llm": {"api_key": 123}}}` → 422
+  - `PUT /api/admin/settings {"sections": {"llm": {"api_key": 123}}}` → 400（同上）
 - **新增** `test_api_key_not_restart_required`：
   - `PUT` 只改 `api_key` → 响应 `restart_required` 为空（断言 `"llm.api_key" not in restart`）
 
