@@ -15,7 +15,7 @@ defineProps<{
 </script>
 
 <template>
-  <n-drawer v-model:show="show" :width="420" placement="right" class="cite-drawer">
+  <n-drawer v-model:show="show" width="min(420px, 92vw)" placement="right" class="cite-drawer">
     <n-drawer-content closable>
       <template #header>参考资料</template>
       <div v-if="citation" class="cite-card">
@@ -65,11 +65,5 @@ defineProps<{
   border-radius: 10px;
   padding: 12px 14px;
   white-space: pre-wrap;
-}
-
-@media (max-width: 480px) {
-  :deep(.n-drawer) {
-    width: 100vw !important;
-  }
 }
 </style>
