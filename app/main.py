@@ -4,11 +4,11 @@ import os
 
 from fastapi import FastAPI, HTTPException
 
-from storage.paths import ADMIN_WEB_DIR, WEB_DIR
+from storage.paths import WEB_DIR
 from .admin.routes import router as admin_router
 from .routes_chat import router as chat_router
 from .routes_health import router as health_router
-from .static_no_store import NoStoreStaticFiles
+from .static_no_store import SpaStaticFiles
 from storage.admin_db import init as admin_db_init
 
 
@@ -26,18 +26,12 @@ def create_app() -> FastAPI:
         raise HTTPException(status_code=404, detail="Not Found")
 
     if os.path.isdir(WEB_DIR):
-        # `no-store` so browsers always refetch index.html / app.js / style.css;
-        # avoids the stale-JS class of bugs (e.g. citations panel accumulating).
+        # Vue SPA 构建产物（web/dist）。no-store + history fallback：
+        # /admin、/admin/settings 等前端路由直达时返回 index.html。
         app.mount(
             "/",
-            NoStoreStaticFiles(directory=WEB_DIR, html=True),
+            SpaStaticFiles(directory=WEB_DIR, html=True),
             name="web",
-        )
-    if os.path.isdir(ADMIN_WEB_DIR):
-        app.mount(
-            "/admin",
-            NoStoreStaticFiles(directory=ADMIN_WEB_DIR, html=True),
-            name="admin-web",
         )
     return app
 

@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+# pnpm 10 及更早版本的旧键名（pnpm 11 会忽略，保留以兼容老环境）
+onlyBuiltDependencies:
+  - esbuild

@@ -15,6 +15,14 @@ if [ ! -d data/chroma ]; then
   uv run python -m ingest.indexer
 fi
 
+# 前端产物检查：web/dist 是 Vue SPA 的构建输出（已随仓库提交）。
+# 缺失时（如手工清理过）提示如何重建，而不是启动后 404。
+if [ ! -f web/dist/index.html ]; then
+  echo "[run] ERROR: web/dist/index.html 不存在（前端产物缺失）。"
+  echo "      请执行: cd frontend && pnpm install && pnpm build"
+  exit 1
+fi
+
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
 echo "[run] starting uvicorn on ${HOST}:${PORT}"

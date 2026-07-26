@@ -4,8 +4,7 @@ import os
 
 DATA_DIR: str = os.environ.get("DATA_DIR", "./data")
 DOCUMENTS_DIR: str = os.environ.get("DOCUMENTS_DIR", "./Documents")
-WEB_DIR: str = os.environ.get("WEB_DIR", "./web")
+WEB_DIR: str = os.environ.get("WEB_DIR", "./web/dist")
 CHROMA_DIR: str = os.path.join(DATA_DIR, "chroma")
 INDEX_META: str = os.path.join(DATA_DIR, "index_meta.json")
 ADMIN_DB: str = os.environ.get("ADMIN_DB", os.path.join(DATA_DIR, "admin.db"))
-ADMIN_WEB_DIR: str = os.environ.get("ADMIN_WEB_DIR", "./web/admin")

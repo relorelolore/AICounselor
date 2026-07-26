@@ -1,63 +1,45 @@
-"""Smoke tests for admin SPA static files."""
+"""Smoke tests for the built Vue SPA static bundle (web/dist)."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 
-ADMIN_WEB_DIR = Path(__file__).resolve().parent.parent / "web" / "admin"
+DIST_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
 
 
-def test_admin_web_dir_exists():
-    assert ADMIN_WEB_DIR.is_dir()
+def test_dist_dir_exists():
+    assert DIST_DIR.is_dir(), (
+        "web/dist 不存在 —— 请先在 frontend/ 下执行 `pnpm install && pnpm build`"
+    )
 
 
-@pytest.mark.parametrize("filename", [
-    "login.html", "index.html", "accounts.html", "settings.html",
-])
-def test_admin_html_pages_exist(filename):
-    assert (ADMIN_WEB_DIR / filename).is_file()
+def test_dist_has_index_and_hashed_assets():
+    assert (DIST_DIR / "index.html").is_file()
+    index = (DIST_DIR / "index.html").read_text(encoding="utf-8")
+    assert '<div id="app">' in index
+    # Vite 构建产物应引用带 content-hash 的 JS/CSS（取代旧前端手工 ?v=N 版本号）
+    assert re.search(r'/assets/[^"]+-[\w-]{8,}\.js', index), (
+        "index.html 未引用 hash 化的 JS bundle"
+    )
+    assert list((DIST_DIR / "assets").glob("*.js")), "web/dist/assets 下没有 JS"
 
 
-def test_admin_html_pages_reference_admin_js_and_css():
-    for f in ADMIN_WEB_DIR.glob("*.html"):
-        text = f.read_text(encoding="utf-8")
-        assert 'admin.css' in text, f"{f.name} missing admin.css"
-        assert 'admin.js' in text, f"{f.name} missing admin.js"
+def test_dist_bundle_is_vue_spa():
+    """bundle 里应包含 Vue Router 的路由注册（管理后台前端路由存在）。"""
+    js = "\n".join(f.read_text(encoding="utf-8") for f in (DIST_DIR / "assets").glob("*.js"))
+    assert "/admin/login" in js, "bundle 缺少 /admin/login 路由（后台未打包？）"
 
 
-def test_admin_js_cache_bust_is_monotonic():
-    """Each admin.html must reference admin.js?v=N with a positive int."""
-    import re
-    versions = []
-    for f in sorted(ADMIN_WEB_DIR.glob("*.html")):
-        m = re.search(r'admin\.js\?v=(\d+)', f.read_text(encoding="utf-8"))
-        assert m, f"{f.name} missing admin.js?v=N"
-        versions.append(int(m.group(1)))
-    # All same version is fine; just non-zero and positive.
-    assert all(v >= 1 for v in versions)
-
-
-def test_admin_routes_serve_html_pages():
-    """FastAPI serves the admin HTML at /admin/<name>.html."""
+def test_admin_routes_serve_spa():
+    """FastAPI 把 /admin/* 都交给 SPA（不再有独立 admin HTML 页面）。"""
     from app.main import app
     with TestClient(app) as c:
-        for name in ["login", "index", "accounts", "settings"]:
-            r = c.get(f"/admin/{name}.html")
-            assert r.status_code == 200, f"/admin/{name}.html returned {r.status_code}"
+        for path in ("/admin", "/admin/login", "/admin/accounts", "/admin/settings"):
+            r = c.get(path)
+            assert r.status_code == 200, f"{path} returned {r.status_code}"
             assert "<html" in r.text.lower()
-
-
-def test_admin_js_supports_redirect_on_401_option():
-    """admin.js api() must support a redirectOn401 option so the login page
-    pre-check can suppress the redirect (avoids an infinite reload loop for
-    unauthenticated users on /admin/login.html)."""
-    text = (ADMIN_WEB_DIR / "admin.js").read_text(encoding="utf-8")
-    assert "redirectOn401" in text, "admin.js missing redirectOn401 option"
-    # The login page pre-check must explicitly opt out of the redirect.
-    login_text = (ADMIN_WEB_DIR / "login.html").read_text(encoding="utf-8")
-    assert "redirectOn401: false" in login_text, (
-        "login.html pre-check must pass redirectOn401: false"
-    )
+            assert '<div id="app">' in r.text
