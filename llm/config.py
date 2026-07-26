@@ -16,6 +16,7 @@ from dataclasses import dataclass, fields
 class LLMConfig:
     base_url: str
     model_name: str
+    api_key: str
     temperature: float
     max_tokens: int
     timeout: int
@@ -44,6 +45,7 @@ def _build_llm_defaults() -> LLMConfig:
     return LLMConfig(
         base_url=_env("LLAMACPP_BASE_URL", "http://localhost:8848/v1"),
         model_name=_env("MODEL_NAME", "g0chu-Qwen3.6-35B-A3B-NVFP4"),
+        api_key=_env("LLAMACPP_API_KEY", "llama.cpp"),
         temperature=float(_env("TEMPERATURE", "0.3")),
         max_tokens=int(_env("MAX_TOKENS", "2048")),
         timeout=int(_env("LLM_TIMEOUT", "120")),

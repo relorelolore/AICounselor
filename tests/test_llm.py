@@ -47,3 +47,19 @@ def test_live_invoke(monkeypatch):
     llm = get_llm(streaming=False)
     out = llm.invoke([HumanMessage(content="只回答 OK：1+1=?")])
     assert "2" in out.content or "OK" in out.content
+
+
+def test_default_api_key(monkeypatch):
+    """LLAMACPP_API_KEY 未设时默认 'llama.cpp'。"""
+    monkeypatch.delenv("LLAMACPP_API_KEY", raising=False)
+    import importlib, llm.config as cfg
+    importlib.reload(cfg)
+    assert cfg.get_llm_settings().api_key == "llama.cpp"
+
+
+def test_env_override_api_key(monkeypatch):
+    """LLAMACPP_API_KEY 环境变量覆盖默认值。"""
+    monkeypatch.setenv("LLAMACPP_API_KEY", "sk-test-123")
+    import importlib, llm.config as cfg
+    importlib.reload(cfg)
+    assert cfg.get_llm_settings().api_key == "sk-test-123"
