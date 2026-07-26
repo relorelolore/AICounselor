@@ -9,6 +9,7 @@ import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
+from .admin.settings import get_effective_settings
 from .schemas import ErrorEvent
 from agent.graph import build_graph
 from llm.client import get_llm
@@ -136,7 +137,13 @@ async def chat(ws: WebSocket) -> None:
         payload = json.loads(raw)
         session_id = str(payload.get("session_id", ""))
         history = payload.get("history")
-        show_reasoning = bool(payload.get("show_reasoning", False))
+        # OR semantics: WS payload flag (per-session, e.g. ?debug=reasoning
+        # URL param) OR admin settings debug.show_reasoning (global toggle).
+        ws_show = bool(payload.get("show_reasoning", False))
+        admin_show = bool(
+            get_effective_settings().get("debug", {}).get("show_reasoning", False)
+        )
+        show_reasoning = ws_show or admin_show
 
         if not _validate_session_id(session_id):
             await ws.send_text(ErrorEvent(data="invalid session_id").model_dump_json())

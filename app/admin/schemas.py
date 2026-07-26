@@ -79,6 +79,12 @@ class EmbeddingSettings(BaseModel):
     model: str
 
 
+class DebugSettings(BaseModel):
+    # Chat-output debug toggle: when true, native model CoT (<think>/<reasoning>/etc.)
+    # is preserved end-to-end instead of stripped. See app/routes_chat.py.
+    show_reasoning: bool = False
+
+
 class SettingsPatch(BaseModel):
     sections: dict[str, dict[str, Any]]
 

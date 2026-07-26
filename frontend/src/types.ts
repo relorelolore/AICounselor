@@ -86,6 +86,7 @@ export interface AdminSettings {
   retrieval: { k: number; chunk_size: number; chunk_overlap: number };
   paths: { documents_dir: string; data_dir: string; chroma_collection: string };
   embedding: { model: string };
+  debug: { show_reasoning: boolean };
 }
 
 export interface ReindexResult {

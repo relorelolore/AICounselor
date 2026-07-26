@@ -5,7 +5,7 @@ from __future__ import annotations
 from storage.admin_db import settings as db_settings
 
 
-SECTIONS: tuple[str, ...] = ("llm", "retrieval", "paths", "embedding")
+SECTIONS: tuple[str, ...] = ("llm", "retrieval", "paths", "embedding", "debug")
 
 
 DEFAULTS: dict[str, dict] = {
@@ -33,6 +33,12 @@ DEFAULTS: dict[str, dict] = {
     "embedding": {
         "model": "BAAI/bge-m3",
     },
+    # debug: chat-output debug toggles. `show_reasoning` defaults to False so
+    # native model CoT (<think>/<reasoning>/etc.) is stripped before reaching
+    # the chat UI. Admin flips it on to inspect model reasoning during dev.
+    "debug": {
+        "show_reasoning": False,
+    },
 }
 
 
@@ -52,6 +58,9 @@ REQUIRES_RESTART: dict[str, set[str]] = {
     # embedding: SentenceTransformer instance is loaded once at first use and
     # cached. Changing the model name requires a restart.
     "embedding": {"model"},
+    # debug: WS handler reads get_effective_settings()["debug"] per request,
+    # so changes apply on the next WS message.
+    "debug": set(),
 }
 
 
@@ -72,6 +81,10 @@ _RANGE_CHECKS: dict[tuple[str, str], tuple[float, float]] = {
 _INT_FIELDS: set[tuple[str, str]] = {
     ("llm", "max_tokens"), ("llm", "timeout"),
     ("retrieval", "k"), ("retrieval", "chunk_size"), ("retrieval", "chunk_overlap"),
+}
+
+_BOOL_FIELDS: set[tuple[str, str]] = {
+    ("debug", "show_reasoning"),
 }
 
 _STR_FIELDS: set[tuple[str, str]] = {
@@ -106,6 +119,11 @@ def _validate_section_payload(section: str, payload: dict) -> None:
             if isinstance(value, bool) or not isinstance(value, int):
                 raise InvalidFieldError(
                     f"{section}.{field} must be int, got {type(value).__name__}"
+                )
+        elif key in _BOOL_FIELDS:
+            if not isinstance(value, bool):
+                raise InvalidFieldError(
+                    f"{section}.{field} must be bool, got {type(value).__name__}"
                 )
         elif key in _STR_FIELDS:
             if not isinstance(value, str) or not value:

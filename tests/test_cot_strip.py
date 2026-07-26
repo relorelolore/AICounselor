@@ -248,3 +248,91 @@ def test_ws_skips_token_event_when_strip_empties_content(monkeypatch):
     assert token_events == []
     # Still emits done so the client knows the turn completed.
     assert any(e["event"] == "done" for e in events)
+
+
+# ---------------------------------------------------------------------------
+# Admin-settings OR-semantics: WS payload flag OR admin debug.show_reasoning.
+# ---------------------------------------------------------------------------
+
+def test_ws_admin_debug_setting_overrides_strip(monkeypatch):
+    """admin enabled debug.show_reasoning globally → WS without show_reasoning
+    flag still preserves CoT (admin setting wins for global debug)."""
+    import app.routes_chat as rc
+    monkeypatch.setattr(
+        rc, "get_effective_settings",
+        lambda: {
+            "llm": {}, "retrieval": {}, "paths": {}, "embedding": {},
+            "debug": {"show_reasoning": True},
+        },
+    )
+
+    client = _build_client_with_mock_graph(monkeypatch, _RAW)
+    events = _connect(client, {
+        "session_id": "00000000-0000-4000-8000-000000000020",
+        "history": [{"role": "user", "content": "你好"}],
+        # No show_reasoning in payload — admin setting should still apply.
+    })
+    tokens = [e["data"] for e in events if e["event"] == "token"]
+    assert len(tokens) == 1
+    assert tokens[0] == _RAW
+
+
+def test_ws_or_semantics_url_flag_overrides_admin_off(monkeypatch):
+    """URL flag set → admin setting off → CoT still preserved (OR)."""
+    import app.routes_chat as rc
+    monkeypatch.setattr(
+        rc, "get_effective_settings",
+        lambda: {
+            "llm": {}, "retrieval": {}, "paths": {}, "embedding": {},
+            "debug": {"show_reasoning": False},
+        },
+    )
+
+    client = _build_client_with_mock_graph(monkeypatch, _RAW)
+    events = _connect(client, {
+        "session_id": "00000000-0000-4000-8000-000000000021",
+        "history": [{"role": "user", "content": "你好"}],
+        "show_reasoning": True,
+    })
+    tokens = [e["data"] for e in events if e["event"] == "token"]
+    assert len(tokens) == 1
+    assert tokens[0] == _RAW
+
+
+def test_ws_or_semantics_both_off_strips(monkeypatch):
+    """Both off (admin default + no URL flag) → strip."""
+    import app.routes_chat as rc
+    monkeypatch.setattr(
+        rc, "get_effective_settings",
+        lambda: {
+            "llm": {}, "retrieval": {}, "paths": {}, "embedding": {},
+            "debug": {"show_reasoning": False},
+        },
+    )
+
+    client = _build_client_with_mock_graph(monkeypatch, _RAW)
+    events = _connect(client, {
+        "session_id": "00000000-0000-4000-8000-000000000022",
+        "history": [{"role": "user", "content": "你好"}],
+    })
+    tokens = [e["data"] for e in events if e["event"] == "token"]
+    assert len(tokens) == 1
+    assert "<think>" not in tokens[0]
+
+
+def test_ws_admin_section_missing_falls_back_to_false(monkeypatch):
+    """Defensive: if `debug` section is absent (DB partial state), treat
+    show_reasoning as False (don't accidentally leak CoT)."""
+    import app.routes_chat as rc
+    monkeypatch.setattr(
+        rc, "get_effective_settings",
+        lambda: {"llm": {}, "retrieval": {}, "paths": {}, "embedding": {}},
+    )
+
+    client = _build_client_with_mock_graph(monkeypatch, _RAW)
+    events = _connect(client, {
+        "session_id": "00000000-0000-4000-8000-000000000023",
+        "history": [{"role": "user", "content": "你好"}],
+    })
+    tokens = [e["data"] for e in events if e["event"] == "token"]
+    assert "<think>" not in tokens[0]

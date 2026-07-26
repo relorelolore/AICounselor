@@ -29,7 +29,7 @@ def _iso(tmp_path, monkeypatch):
 # ----- constants -----
 
 def test_sections_are_the_four_expected():
-    assert set(SECTIONS) == {"llm", "retrieval", "paths", "embedding"}
+    assert set(SECTIONS) == {"llm", "retrieval", "paths", "embedding", "debug"}
 
 
 def test_defaults_contain_every_field():
@@ -43,6 +43,8 @@ def test_defaults_contain_every_field():
         "documents_dir", "data_dir", "chroma_collection",
     }
     assert set(DEFAULTS["embedding"].keys()) == {"model"}
+    # debug: chat-output debug toggles (CoT strip toggle lives here).
+    assert DEFAULTS["debug"] == {"show_reasoning": False}
 
 
 def test_requires_restart_lists_known_fields():
@@ -55,13 +57,15 @@ def test_requires_restart_lists_known_fields():
     assert REQUIRES_RESTART["paths"] == {"documents_dir", "data_dir", "chroma_collection"}
     # embedding: SentenceTransformer instance loaded once at startup.
     assert REQUIRES_RESTART["embedding"] == {"model"}
+    # debug: WS handler reads get_effective_settings() per-request → hot.
+    assert REQUIRES_RESTART["debug"] == set()
 
 
 # ----- get_effective_settings -----
 
 def test_effective_returns_all_sections_with_defaults_when_db_empty():
     eff = get_effective_settings()
-    assert set(eff.keys()) == {"llm", "retrieval", "paths", "embedding"}
+    assert set(eff.keys()) == {"llm", "retrieval", "paths", "embedding", "debug"}
     assert eff["llm"]["temperature"] == DEFAULTS["llm"]["temperature"]
 
 
@@ -84,6 +88,36 @@ def test_update_llm_temperature_out_of_range():
     with pytest.raises(InvalidFieldError) as ei:
         update_settings(sections={"llm": {"temperature": 3.0}}, by_username="admin")
     assert "temperature" in str(ei.value)
+
+
+def test_debug_show_reasoning_round_trip():
+    """debug.show_reasoning PUT → DB → get_effective_settings → hot-reload."""
+    new, restart = update_settings(
+        sections={"debug": {"show_reasoning": True}}, by_username="admin"
+    )
+    assert new["debug"]["show_reasoning"] is True
+    # hot-reloadable (read by WS handler per-request).
+    assert restart == []
+
+    eff = get_effective_settings()
+    assert eff["debug"]["show_reasoning"] is True
+
+
+def test_debug_show_reasoning_validates_bool():
+    """String / int / null rejected — only true/false accepted."""
+    for bad in ("true", 1, 0, None, "yes"):
+        with pytest.raises(InvalidFieldError) as ei:
+            update_settings(
+                sections={"debug": {"show_reasoning": bad}}, by_username="admin"
+            )
+        assert "show_reasoning" in str(ei.value)
+
+
+def test_debug_unknown_field_rejected():
+    with pytest.raises(InvalidFieldError):
+        update_settings(
+            sections={"debug": {"unknown_field": True}}, by_username="admin"
+        )
 
 
 def test_update_llm_max_tokens_must_be_int():

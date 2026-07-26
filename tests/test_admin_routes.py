@@ -203,7 +203,9 @@ def test_get_settings_returns_all_sections(logged_in):
     r = logged_in.get("/api/admin/settings")
     assert r.status_code == 200
     body = r.json()
-    assert set(body.keys()) == {"llm", "retrieval", "paths", "embedding"}
+    assert set(body.keys()) == {"llm", "retrieval", "paths", "embedding", "debug"}
+    # debug defaults: show_reasoning is False so ordinary users never see CoT.
+    assert body["debug"] == {"show_reasoning": False}
 
 
 def test_put_settings_updates_and_returns_restart_required(logged_in):

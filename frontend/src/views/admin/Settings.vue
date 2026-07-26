@@ -40,6 +40,7 @@ interface SettingsForm {
   retrieval: { k: Num; chunk_size: Num; chunk_overlap: Num };
   paths: { documents_dir: string; data_dir: string; chroma_collection: string };
   embedding: { model: string };
+  debug: { show_reasoning: boolean };
 }
 
 // 响应式副本：不直接改 store / 服务端对象。
@@ -58,6 +59,7 @@ const form = reactive<SettingsForm>({
   retrieval: { k: null, chunk_size: null, chunk_overlap: null },
   paths: { documents_dir: "", data_dir: "", chroma_collection: "" },
   embedding: { model: "" },
+  debug: { show_reasoning: false },
 });
 
 const loading = ref(true);
@@ -70,6 +72,7 @@ async function load() {
     form.retrieval = { ...s.retrieval };
     form.paths = { ...s.paths };
     form.embedding = { ...s.embedding };
+    form.debug = { ...s.debug };
   } catch (e) {
     message.error(e instanceof AdminApiError ? e.detail || e.message : "设置加载失败");
   }
@@ -86,7 +89,7 @@ interface FieldDef {
   numeric?: boolean;
 }
 
-type SaveKey = "llm-params" | "llm-conn" | "retrieval" | "paths" | "embedding";
+type SaveKey = "llm-params" | "llm-conn" | "retrieval" | "paths" | "embedding" | "debug";
 
 interface GroupDef {
   id: SaveKey;
@@ -134,12 +137,40 @@ const groupEmbedding: GroupDef = {
   fields: [{ key: "model" }],
 };
 
+// Debug toggles — managed separately because they aren't covered by the
+// generic FieldDef / SaveKey machinery (n-switch isn't a text input).
+// Chat-output debug: show_reasoning preserves native model CoT (<think>/<reasoning>/
+// etc.) instead of stripping it. Applies globally to all chat users.
+const debugDirty = ref(false);
+async function saveDebug() {
+  if (saving.debug) return;
+  saving.debug = true;
+  try {
+    const r = await adminApi<{ sections: unknown; restart_required: string[] }>("/settings", {
+      method: "PUT",
+      body: { sections: { debug: { show_reasoning: form.debug.show_reasoning } } },
+    });
+    if (r.restart_required && r.restart_required.length) {
+      restartFields.value = r.restart_required;
+      message.warning("已保存，部分修改需重启服务后生效");
+    } else {
+      message.success("已保存");
+    }
+    debugDirty.value = false;
+  } catch (e) {
+    message.error(e instanceof AdminApiError ? e.detail || e.message : "保存失败");
+  } finally {
+    saving.debug = false;
+  }
+}
+
 const saving = reactive<Record<SaveKey, boolean>>({
   "llm-params": false,
   "llm-conn": false,
   retrieval: false,
   paths: false,
   embedding: false,
+  debug: false,
 });
 
 async function saveGroup(group: GroupDef) {
@@ -402,6 +433,38 @@ async function saveGroup(group: GroupDef) {
             </n-button>
           </div>
         </n-card>
+
+        <!-- 调试（热生效） -->
+        <n-card class="card" :bordered="false">
+          <template #header>
+            <div class="card-head">
+              <span class="card-title">调试</span>
+              <span class="badge hot">热生效</span>
+            </div>
+          </template>
+          <n-form label-placement="left" :label-width="210">
+            <n-form-item label="显示模型思考过程">
+              <n-switch
+                v-model:value="form.debug.show_reasoning"
+                @update:value="debugDirty = true"
+              />
+              <span class="hint">
+                开启后 chat 气泡会显示 native CoT（&lt;think&gt; / &lt;reasoning&gt; / &lt;analysis&gt; 等），
+                方便调试；默认关闭。
+              </span>
+            </n-form-item>
+          </n-form>
+          <div class="card-actions">
+            <n-button
+              type="primary"
+              :disabled="!debugDirty"
+              :loading="saving.debug"
+              @click="saveDebug"
+            >
+              保存调试设置
+            </n-button>
+          </div>
+        </n-card>
       </div>
     </n-spin>
   </div>
@@ -428,6 +491,12 @@ async function saveGroup(group: GroupDef) {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.hint {
+  margin-left: 12px;
+  color: var(--n-text-color-3, #888);
+  font-size: 13px;
 }
 
 .card {
