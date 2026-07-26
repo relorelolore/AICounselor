@@ -35,6 +35,7 @@ def test_get_llm_uses_openai_compat(monkeypatch):
     assert llm.model_name == "g0chu-Qwen3.6-35B-A3B-NVFP4"
     assert llm.streaming is False
     assert llm.temperature == 0.0
+    assert llm.openai_api_key.get_secret_value() == "llama.cpp"  # ChatOpenAI stores SecretStr
 
 
 @pytest.mark.skipif(
