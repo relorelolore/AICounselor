@@ -40,7 +40,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `ingest/` | 索引构建器 + `python -m ingest` CLI |
 | `llm/` | OpenAI 兼容客户端指向 llama.cpp |
 | `storage/` | 路径常量（`paths.py`）+ SQLite admin 持久化（`admin_db.py` → `data/admin.db`） |
-| `web/` | 原生 HTML+JS+CSS 单页 Chat UI；`web/admin/` 是独立管理 SPA（登录 + dashboard/accounts/settings 3 页 + 共享 css/js） |
+| `web/` | 原生 HTML+JS+CSS 单页 Chat UI；`web/admin/` 是独立管理 SPA（login + dashboard/accounts/settings 4 页 + 共享 css/js） |
 
 `storage/paths.py` 是所有磁盘路径的单一来源；不要散落 hardcode。
 
@@ -49,12 +49,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 后台入口：`/admin/login.html`（**不在用户前台显示入口**）；默认账号 `admin / 147369`，首次登录后**必须**改密。
 - 后端：`app/admin/` 包（auth / accounts / settings / reindex / routes / schemas）；SQLite 持久化在 `storage/admin_db.py` → 单文件 `data/admin.db`（WAL + `threading.RLock`）。
 - 路由：`/api/admin/{login,logout,me,accounts,settings,reindex,reindex/last}`；session cookie `counselor_admin`（HttpOnly + SameSite=Lax + 24h 滑动续期）。
+- CSRF：所有 mutating 方法（POST/PATCH/PUT/DELETE）拒绝缺失或与请求 Host 不匹配的 `Origin` 头（GET 豁免）。默认允许 `COUNSELOR_ALLOWED_ORIGIN`（默认 `http://localhost:8000`）**或** Origin 的 host:port 等于请求 `Host` 头（浏览器同源请求天然满足）。可通过 `COUNSELOR_ALLOWED_ORIGIN` 环境变量收紧到特定源。
 - 锁定策略：6 次错误后**永久**锁定，必须其他管理员手动解锁。
 - 可调参数分两类：热生效（`temperature/max_tokens/top_p/penalties/k/chunk_*`）和需重启（`base_url/model_name/timeout/paths/embedding.model`）；`PUT /api/admin/settings` 返回的 `restart_required` 字段列出后者。
 - 前端：`web/admin/` 4 个独立 HTML 页面 + 共享 `admin.css` / `admin.js`；无 npm、无构建。
 - 用户前台去掉了「重建索引」按钮（迁移至后台），`/api/ingest` 已删除（重建索引仅走 `POST /api/admin/reindex`）。
 - `llm/config.py` / `rag/retriever.py` / `rag/splitter.py` 改为从运行时单例读配置，支持热生效字段的下一次请求即时生效。
-- 修改 `web/admin/admin.js` 或 `web/admin/*.html` 时同样按需 bump `<script src="admin.js?v=N">`（当前 `?v=1`，与用户 SPA 的 `?v=12` 互相独立计数）。
+- 修改 `web/admin/admin.js` 或 `web/admin/*.html` 时同样按需 bump `<script src="admin.js?v=N">`（当前 `?v=2`，与用户 SPA 的 `?v=13` 互相独立计数）。
 
 ## 前端架构（`web/`）
 
@@ -81,7 +82,7 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 - 全部测试在 `tests/`，**无 `__init__.py`**（pytest rootdir 自动发现）。
 - `tests/conftest.py` 提供两个 autouse fixture：`_reset_llm_config`（每次前 `importlib.reload(llm.config)`）和 `_maybe_skip_embedding_tests`（`OFFLINE=1` 时跳过 `chroma_roundtrip` 测试，避免下载 bge-m3）。
 - `tests/test_tools.py` 导出 `FakeRetriever`；`tests/test_graph.py` 内的 `RotatingFakeChat`（继承 `BaseChatModel`，`bind_tools` 返回 `self`）用于模拟 ReAct 多轮响应（脚本化的 `AIMessage`/`str` 序列，含 `tool_calls`）。两者配合即可完整驱动 ReAct 流程，无需 llama.cpp。
-- 当前基线：`OFFLINE=1 uv run --extra dev pytest` → **57 passed, 2 skipped**（live llama.cpp + bge-m3 roundtrip），覆盖 `test_tools.py`（9 个）+ `test_graph.py`（3 个 ReAct 场景）+ `test_citations.py` + `test_chat_history.py`（8 个）+ `test_api.py`（frontend assertions）。
+- 当前基线：`OFFLINE=1 uv run --extra dev pytest` → **203 passed, 2 skipped**（live llama.cpp + bge-m3 roundtrip 各 1 个 skip，2 个 `test_chat_history` 失败需 live llama.cpp），覆盖原 57 baseline + admin 套件（`test_admin_{db,auth,accounts,settings,reindex,routes,static}.py` ≈141 个）+ 调整后的 `test_api.py` / `test_llm.py`。
 - **不在** brief / fixture 文件夹下加 `tests/__init__.py`。
 - **不要**用 `python -m pytest` / `pytest` — 必须 `uv run --extra dev pytest` 才能解析 `.venv/`。
 
@@ -96,6 +97,7 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 | `langchain-community 0.3.x` | 每次 import 打 `DeprecationWarning: langchain-community is being sunset`。`pytest.ini` `filterwarnings` 只屏蔽 `DeprecationWarning`，**不**屏蔽 `PendingDeprecationWarning`，所以仍有提示 — 无害。 |
 | `numpy 2.4.4` | lockfile 解析到 numpy 2.4.4（plan 没设上限）。langchain 0.3.x 已兼容；plan 代码不直接 import numpy。可考虑加 `numpy<2.0` 直接依赖。 |
 | `LLAMACPP_BASE_URL` 不可达 | `/api/health` 返回 `degraded`（llm=False），不抛 5xx；WS handler 异常路径会 `error` 事件。 |
+| 管理后台 CSRF（`app/admin/routes.py::_check_origin`） | Origin 缺失或不匹配 `_ALLOWED_ORIGIN`/请求 Host 头 → 403。默认也允许 Origin host:port == 请求 Host 头（浏览器同源天然满足）；访问 `127.0.0.1`/LAN IP 不会触发 403。收紧用 `COUNSELOR_ALLOWED_ORIGIN` 环境变量。 |
 
 ## 环境变量（`llm/config.py` + `storage/paths.py` + 各模块）
 
@@ -110,6 +112,9 @@ START ↔ agent (LLM) ↔ tools (search_documents) → END
 | `CHROMA_COLLECTION` | `counselor` | Chroma collection 名 |
 | `OFFLINE` | `0` | `1` 跳过 bge-m3 下载（用于测试） |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` / `RETRIEVE_K` | 500 / 80 / 6 | splitter + retriever 参数 |
+| `COUNSELOR_ALLOWED_ORIGIN` | `http://localhost:8000` | 管理后台 CSRF 允许的 Origin；默认还接受与请求 Host 匹配的 Origin（覆盖 `127.0.0.1`/LAN 访问） |
+| `ADMIN_DB` | `./data/admin.db` | 管理后台 SQLite 文件位置（环境变量可覆盖） |
+| `ADMIN_WEB_DIR` | `./web/admin` | 管理后台静态 SPA 目录（环境变量可覆盖） |
 
 ## WebSocket 协议（`app/routes_chat.py` + `web/app.js`）
 

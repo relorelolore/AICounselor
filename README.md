@@ -15,6 +15,16 @@
 
 详细规范见 `docs/superpowers/specs/2026-07-25-admin-backend-design.md`。
 
+### CSRF / 跨域访问
+
+后台所有 mutating 端点（POST/PATCH/PUT/DELETE）都会校验 `Origin` 头，GET 豁免。默认行为：
+- 允许 `COUNSELOR_ALLOWED_ORIGIN` 环境变量指向的源（默认 `http://localhost:8000`）
+- **或** 允许 `Origin` 的 host:port 等于请求 `Host` 头（浏览器同源请求天然满足）
+
+所以浏览器通过 `http://localhost:8000` / `http://127.0.0.1:8000` / `http://<LAN-IP>:8000` 任一地址访问都能正常工作。如需进一步收紧，把 `COUNSELOR_ALLOWED_ORIGIN` 设为唯一允许的源。
+
+如果直接 `curl` 调后台 mutating 端点遇到 `403 origin not allowed`，给请求加上 `-H 'Origin: http://localhost:8000'`（匹配默认允许源）或加上 `-H "Host: <你的地址>"` 即可。
+
 ## 功能
 
 - 在 `Documents/` 下放入 PDF/PPT/Word 文档
@@ -102,6 +112,13 @@ bash scripts/run.sh   # 自动重建索引 + chroma
 
 > **关于 `data/checkpoints.db`**：旧版 SqliteSaver 留下的检查点文件在 `bash scripts/run.sh` 启动时会自动删除（`scripts/run.sh` 里的一次性迁移，幂等）。如果手动 `rm -rf data/`，该文件也会随 Chroma 索引一并清掉，无需单独处理。
 
+如果后台登录/操作时遇到 `403 origin not allowed`：
+- 浏览器访问：通过 `http://localhost:8000` / `127.0.0.1` / LAN IP 都默认允许（Origin host:port == 请求 Host）。
+- curl 调 mutating 端点：加 `-H 'Origin: http://localhost:8000'`。
+- 进一步收紧：设置 `COUNSELOR_ALLOWED_ORIGIN` 为唯一允许源，重启服务。
+
+管理后台默认账号 `admin / 147369`，**首次登录后必须改密**；如忘记密码，删除 `data/admin.db` 后重启服务（会重新种子默认账号；其他账号需在首次登录后立即创建）。
+
 ## 配置（环境变量）
 
 | 变量 | 默认值 |
@@ -115,7 +132,15 @@ bash scripts/run.sh   # 自动重建索引 + chroma
 | `CHUNK_SIZE` | `500` |
 | `CHUNK_OVERLAP` | `80` |
 | `RETRIEVE_K` | `6` |
+| `COUNSELOR_ALLOWED_ORIGIN` | `http://localhost:8000`（管理后台 CSRF 允许源；默认还接受与请求 Host 匹配的 Origin） |
+| `ADMIN_DB` | `./data/admin.db`（管理后台 SQLite 文件位置） |
+| `ADMIN_WEB_DIR` | `./web/admin`（管理后台静态 SPA 目录） |
+
+注意：管理后台**部分参数（`temperature` / `max_tokens` / `k` / `chunk_size` 等）可在 `/admin/settings` 实时调整**，不需重启服务；其他（`base_url` / `model_name` / `timeout` / 路径 / Embedding 模型）需重启进程生效。
 
 ## 目录结构
 
-见 `docs/superpowers/specs/2026-07-24-ai-counselor-design.md` §2.2。
+见 `docs/superpowers/specs/2026-07-24-ai-counselor-design.md` §2.2。管理后台模块：
+- `app/admin/` — 路由 + 业务逻辑（auth / accounts / settings / reindex / routes / schemas）
+- `storage/admin_db.py` — SQLite 持久化
+- `web/admin/` — 4 个独立 HTML（login + dashboard + accounts + settings）+ 共享 `admin.css` / `admin.js`
