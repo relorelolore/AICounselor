@@ -23,6 +23,12 @@ REM parens when locating if-block boundaries, which can confuse the parser.
 setlocal
 cd /d "%~dp0\.."
 
+REM Disable chromadb posthog telemetry. chromadb 0.6.x calls
+REM posthog.capture with 3 positional args; posthog 7.x only accepts 1
+REM positional arg, so every event fails with the wrong-arg-count error.
+REM Setting ANONYMIZED_TELEMETRY=False makes chromadb disable telemetry.
+if "%ANONYMIZED_TELEMETRY%"=="" set ANONYMIZED_TELEMETRY=False
+
 if not exist data mkdir data
 
 REM One-time migration: drop legacy per-session checkpoint DB.

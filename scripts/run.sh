@@ -15,6 +15,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Disable chromadb's posthog telemetry (see CLAUDE.md "known pitfalls").
+# chromadb 0.6.x calls posthog.capture() with 3 positional args; posthog
+# 7.x only accepts 1 positional arg → every event fails with
+# `capture() takes 1 positional argument but 3 were given`.
+export ANONYMIZED_TELEMETRY="${ANONYMIZED_TELEMETRY:-False}"
+
 mkdir -p data
 
 # One-time migration: drop legacy per-session checkpoint DB. The backend

@@ -2,6 +2,42 @@
 from __future__ import annotations
 import os
 
+# Patch chromadb 0.6.x's posthog telemetry call to match posthog >= 7.x's
+# signature. chromadb's Posthog._direct_capture calls
+# `posthog.capture(distinct_id, event_name, properties)` with 3 positional
+# args; posthog 7.x changed `capture()` to `(event: str, **kwargs)` — only
+# 1 positional arg allowed — so every telemetry event fails with
+# `capture() takes 1 positional argument but 3 were given`. chromadb already
+# wraps the call in try/except and just logs the failure, but the noise is
+# visible in every uvicorn / `python -m ingest` startup. We monkey-patch
+# `_direct_capture` to use the new signature; the patch is idempotent so
+# re-running app startup (e.g. uvicorn --reload) is safe.
+import posthog  # noqa: E402
+import chromadb.telemetry.product.posthog as _chroma_posthog  # noqa: E402
+
+if not getattr(_chroma_posthog.Posthog, "_AICounselor_patched", False):
+    _orig_direct_capture = _chroma_posthog.Posthog._direct_capture
+    _POSTHOG_EVENT_SETTINGS = _chroma_posthog.POSTHOG_EVENT_SETTINGS
+
+    def _patched_direct_capture(self, event):  # type: ignore[no-redef]
+        try:
+            posthog.capture(
+                event.name,
+                distinct_id=self.user_id,
+                properties={
+                    **event.properties,
+                    **_POSTHOG_EVENT_SETTINGS,
+                    **self.context,
+                },
+            )
+        except Exception as exc:
+            _chroma_posthog.logger.error(
+                f"Failed to send telemetry event {event.name}: {exc}"
+            )
+
+    _chroma_posthog.Posthog._direct_capture = _patched_direct_capture
+    _chroma_posthog.Posthog._AICounselor_patched = True
+
 from fastapi import FastAPI, HTTPException
 
 from llm.config import (
