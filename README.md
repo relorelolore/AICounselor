@@ -104,9 +104,30 @@ Windows（CMD）：
 scripts\run.bat
 ```
 
-两个脚本等价：`cd` 到仓库根、准备 `data/`、清理旧的 `checkpoints.db`、首启自动入索引、检查 `web/dist/index.html`、跑 `uv run uvicorn ... --reload`。`HOST` / `PORT` 环境变量可覆盖默认（`0.0.0.0` / `8000`）。
+两个脚本等价：`cd` 到仓库根、准备 `data/`、清理旧的 `checkpoints.db`、首启自动入索引、检查 `web/dist/index.html`、跑 `uv run uvicorn ... --reload`。
 
-打开浏览器访问 `http://localhost:8000`。
+### 自定义绑定地址 / 端口
+
+默认监听 `0.0.0.0:8000`。可用 `HOST` / `PORT` 环境变量覆盖（两个脚本都生效，启动时会校验端口合法性）：
+
+```bash
+# Linux / macOS
+HOST=127.0.0.1 PORT=8080 bash scripts/run.sh
+```
+
+```bat
+REM Windows
+set HOST=127.0.0.1
+set PORT=8080
+scripts\run.bat
+
+REM 或一行版
+set HOST=127.0.0.1&& set PORT=8080&& scripts\run.bat
+```
+
+> **WinError 10013（Windows 上 `0.0.0.0:8000` 绑定失败）**：通常是端口被占、TIME_WAIT 残留、或杀软拦截。优先 `set HOST=127.0.0.1` 绑 loopback 绕过；若仍失败，用 `netstat -ano | findstr :8000` 查占用方再 `taskkill /F /PID <pid>`。
+
+打开浏览器访问 `http://localhost:8000`（或你自定义的地址）。
 
 ## Web UI
 

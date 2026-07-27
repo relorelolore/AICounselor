@@ -23,6 +23,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 启动服务（Linux/macOS，首启自动入索引） | `bash scripts/run.sh` |
 | 启动服务（Windows，首启自动入索引） | `scripts\run.bat` |
 | 启动后台 + 验证 | `bash scripts/run.sh &` 然后 `curl http://localhost:8000/api/health` |
+| 覆盖绑定地址 / 端口（Linux） | `HOST=127.0.0.1 PORT=8080 bash scripts/run.sh` |
+| 覆盖绑定地址 / 端口（Windows） | `set HOST=127.0.0.1&& set PORT=8080&& scripts\run.bat` |
 | 全量测试（offline） | `OFFLINE=1 uv run --extra dev pytest -q` |
 | 单文件测试 | `OFFLINE=1 uv run --extra dev pytest tests/test_tools.py -v`（或 `tests/test_graph.py`） |
 | 前端构建 | `cd frontend && pnpm build`（输出 `web/dist/`，需提交） |

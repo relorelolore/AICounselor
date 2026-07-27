@@ -1,7 +1,18 @@
 @echo off
 REM scripts/run.bat - Windows startup script, CMD equivalent of run.sh
-REM Usage:  scripts\run.bat  or double-click
-REM Env:    HOST default 0.0.0.0,  PORT default 8000
+REM
+REM Usage:
+REM   scripts\run.bat
+REM
+REM Override host / port, defaults shown:
+REM   set HOST=127.0.0.1
+REM   set PORT=8080
+REM   scripts\run.bat
+REM Or one-liner:  set HOST=127.0.0.1&& set PORT=8080&& scripts\run.bat
+REM
+REM Other env vars respected by the backend, see CLAUDE.md:
+REM   LLAMACPP_BASE_URL, MODEL_NAME, EMBED_MODEL, DOCUMENTS_DIR, DATA_DIR,
+REM   OFFLINE, CHUNK_SIZE, CHUNK_OVERLAP, RETRIEVE_K, COUNSELOR_ALLOWED_ORIGIN.
 REM
 REM IMPORTANT: This file is ASCII-only on purpose. Some Windows CMD builds
 REM mis-parse REM lines that contain CJK characters, treating them as
@@ -34,7 +45,31 @@ if not exist web\dist\index.html (
     exit /b 1
 )
 
+REM Apply host / port overrides with defaults.
 if "%HOST%"=="" set HOST=0.0.0.0
 if "%PORT%"=="" set PORT=8000
+
+REM Validate PORT: digits only, in 1-65535. The for /f trick with digit
+REM delimiters catches any non-numeric character; if %%c gets assigned,
+REM PORT contains something other than 0-9.
+set "PORT_CHECK=PASS"
+for /f "delims=0123456789" %%c in ("%PORT%") do set "PORT_CHECK=FAIL"
+if "%PORT_CHECK%"=="FAIL" (
+    echo [run] ERROR: PORT=%PORT% is not a valid port, expected 1-65535
+    exit /b 1
+)
+if %PORT% lss 1 (
+    echo [run] ERROR: PORT=%PORT% is out of range, expected 1-65535
+    exit /b 1
+)
+if %PORT% gtr 65535 (
+    echo [run] ERROR: PORT=%PORT% is out of range, expected 1-65535
+    exit /b 1
+)
+if "%HOST%"=="" (
+    echo [run] ERROR: HOST is empty
+    exit /b 1
+)
+
 echo [run] starting uvicorn on %HOST%:%PORT%
 uv run uvicorn app.main:app --host %HOST% --port %PORT% --reload
