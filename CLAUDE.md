@@ -20,7 +20,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 用途 | 命令 |
 |---|---|
-| 启动服务（首启自动入索引） | `bash scripts/run.sh` |
+| 启动服务（Linux/macOS，首启自动入索引） | `bash scripts/run.sh` |
+| 启动服务（Windows，首启自动入索引） | `scripts\run.bat` |
 | 启动后台 + 验证 | `bash scripts/run.sh &` 然后 `curl http://localhost:8000/api/health` |
 | 全量测试（offline） | `OFFLINE=1 uv run --extra dev pytest -q` |
 | 单文件测试 | `OFFLINE=1 uv run --extra dev pytest tests/test_tools.py -v`（或 `tests/test_graph.py`） |

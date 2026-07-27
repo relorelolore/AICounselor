@@ -92,9 +92,19 @@
 
 ## 启动
 
+Linux / macOS：
+
 ```bash
 bash scripts/run.sh
 ```
+
+Windows（CMD）：
+
+```bat
+scripts\run.bat
+```
+
+两个脚本等价：`cd` 到仓库根、准备 `data/`、清理旧的 `checkpoints.db`、首启自动入索引、检查 `web/dist/index.html`、跑 `uv run uvicorn ... --reload`。`HOST` / `PORT` 环境变量可覆盖默认（`0.0.0.0` / `8000`）。
 
 打开浏览器访问 `http://localhost:8000`。
 
@@ -128,7 +138,7 @@ bash scripts/run.sh
 
 - 所有会话、消息、引用都在 `localStorage["counselor:state"]`。
 - **会话 id**（UUID v4）只在 WebSocket 帧里作为审计字段携带，不参与任何服务端状态。
-- 重启 `bash scripts/run.sh` 或 `pkill -9 -f uvicorn` 都不会丢失会话。
+- 重启启动脚本（Linux：`bash scripts/run.sh` / `pkill -9 -f uvicorn`；Windows：`scripts\run.bat` / `taskkill /F /IM uvicorn.exe`）都不会丢失会话。
 - 浏览器清缓存 / 隐私模式 → 会丢；想"重置"就在 ⋯ → 清空全部会话，或浏览器 DevTools 删除 `counselor:state`。
 
 ### 响应式
@@ -182,12 +192,20 @@ SKIP_LIVE_LLM=0 uv run --extra dev pytest tests/test_llm.py -v
 如果 Chroma 索引损坏（`/api/health` 返回 `degraded` 或检索异常）：
 
 ```bash
+# Linux / macOS
 pkill -9 -f uvicorn
 rm -rf data/
 bash scripts/run.sh   # 自动重建索引 + chroma
 ```
 
-> **关于 `data/checkpoints.db`**：旧版 SqliteSaver 留下的检查点文件在 `bash scripts/run.sh` 启动时会自动删除（`scripts/run.sh` 里的一次性迁移，幂等）。如果手动 `rm -rf data/`，该文件也会随 Chroma 索引一并清掉，无需单独处理。
+```bat
+REM Windows（PowerShell / CMD）
+taskkill /F /IM uvicorn.exe
+rmdir /s /q data
+scripts\run.bat       :: 自动重建索引 + chroma
+```
+
+> **关于 `data/checkpoints.db`**：旧版 SqliteSaver 留下的检查点文件在 `scripts/run.sh` / `scripts/run.bat` 启动时会自动删除（启动脚本里的一次性迁移，幂等）。如果手动 `rm -rf data/`，该文件也会随 Chroma 索引一并清掉，无需单独处理。
 
 如果后台登录/操作时遇到 `403 origin not allowed`：
 - 浏览器访问：通过 `http://localhost:8000` / `127.0.0.1` / LAN IP 都默认允许（Origin host:port == 请求 Host）。
