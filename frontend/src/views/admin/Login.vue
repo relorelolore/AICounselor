@@ -103,7 +103,7 @@ async function submit() {
   overflow: hidden;
 }
 
-/* 品牌渐变装饰光斑 */
+/* 品牌渐变装饰光斑（缓慢漂移） */
 .login-page::before,
 .login-page::after {
   content: "";
@@ -111,6 +111,7 @@ async function submit() {
   border-radius: 50%;
   filter: blur(100px);
   pointer-events: none;
+  animation: blob-drift 14s ease-in-out infinite alternate;
 }
 
 .login-page::before {
@@ -129,6 +130,16 @@ async function submit() {
   opacity: 0.14;
   bottom: -140px;
   right: -80px;
+  animation-delay: -7s;
+}
+
+@keyframes blob-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(40px, 30px) scale(1.08);
+  }
 }
 
 .login-card {
@@ -136,30 +147,40 @@ async function submit() {
   z-index: 1;
   width: 380px;
   max-width: 100%;
-  background: var(--bg-elev);
+  background: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: var(--shadow-pop);
-  padding: 36px 32px 32px;
+  padding: 40px 34px 34px;
+  animation: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .logo {
-  width: 56px;
-  height: 56px;
+  width: 58px;
+  height: 58px;
   margin: 0 auto 16px;
-  border-radius: 16px;
+  border-radius: 17px;
   background: var(--brand-grad);
   display: grid;
   place-items: center;
-  font-size: 28px;
-  box-shadow: 0 6px 18px rgba(79, 110, 247, 0.35);
+  font-size: 29px;
+  box-shadow:
+    0 8px 20px var(--brand-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .title {
   margin: 0;
   font-size: 19px;
   font-weight: 700;
+  letter-spacing: 0.02em;
   text-align: center;
+  background: var(--brand-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .subtitle {
@@ -172,5 +193,13 @@ async function submit() {
 .error-alert {
   margin-bottom: 16px;
   border-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-page::before,
+  .login-page::after,
+  .login-card {
+    animation: none;
+  }
 }
 </style>

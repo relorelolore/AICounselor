@@ -482,10 +482,11 @@ async function saveGroup(group: GroupDef) {
   margin: 4px 0 0;
   font-size: 20px;
   font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .restart-banner {
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .groups {
@@ -501,7 +502,13 @@ async function saveGroup(group: GroupDef) {
 }
 
 .card {
+  border-radius: 14px;
   box-shadow: var(--shadow-soft);
+  transition: box-shadow 0.18s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-pop);
 }
 
 .card-head {

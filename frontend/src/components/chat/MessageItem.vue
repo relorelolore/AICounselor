@@ -69,6 +69,13 @@ const html = computed(() =>
   display: flex;
   gap: 10px;
   padding: 6px 0;
+  animation: fade-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-row {
+    animation: none;
+  }
 }
 
 .msg-row.user {
@@ -84,7 +91,7 @@ const html = computed(() =>
   font-size: 17px;
   border-radius: 10px;
   background: var(--brand-grad);
-  box-shadow: 0 2px 8px rgba(79, 110, 247, 0.3);
+  box-shadow: 0 3px 10px var(--brand-glow);
 }
 
 .bubble-wrap {
@@ -128,6 +135,7 @@ const html = computed(() =>
   background: var(--bubble-user-bg);
   color: var(--bubble-user-fg);
   border-top-right-radius: 6px;
+  box-shadow: 0 4px 14px var(--brand-glow);
 }
 
 .bubble.error {
@@ -180,5 +188,7 @@ const html = computed(() =>
   color: var(--brand-from);
   border-color: var(--brand-from);
   background: var(--bg-hover);
+  box-shadow: 0 2px 8px var(--brand-glow);
+  transform: translateY(-1px);
 }
 </style>

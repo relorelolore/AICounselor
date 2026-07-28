@@ -303,6 +303,7 @@ const hasContent = computed(
   min-width: 0;
   display: flex;
   flex-direction: column;
+  background: var(--bg-deco);
 }
 
 .topbar {
@@ -312,7 +313,9 @@ const hasContent = computed(
   padding: 10px 16px;
   background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
   z-index: 10;
 }
 
@@ -376,6 +379,10 @@ const hasContent = computed(
   font-size: 12px;
   color: var(--fg-muted);
   flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
 }
 
 .status-dot {
@@ -401,6 +408,9 @@ const hasContent = computed(
 }
 
 @media (max-width: 560px) {
+  .status {
+    padding: 4px 8px;
+  }
   .status-text {
     display: none;
   }

@@ -197,13 +197,18 @@ async function onLogout() {
   display: grid;
   place-items: center;
   font-size: 18px;
-  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.3);
+  box-shadow: 0 4px 12px var(--brand-glow);
 }
 
 .brand-name {
   font-size: 15px;
   font-weight: 700;
+  letter-spacing: 0.02em;
   white-space: nowrap;
+  background: var(--brand-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .menu-icon {
@@ -214,6 +219,19 @@ async function onLogout() {
 :deep(.n-menu-item-content a) {
   color: inherit;
   text-decoration: none;
+}
+
+/* 菜单项圆角 + 内缩，选中态更精致 */
+:deep(.n-menu .n-menu-item-content) {
+  border-radius: 10px;
+  margin: 2px 8px;
+  transition: background 0.15s ease;
+}
+
+:deep(.n-menu .n-menu-item-content::before) {
+  left: 8px;
+  right: 8px;
+  border-radius: 10px;
 }
 
 .sider-footer {
@@ -246,6 +264,7 @@ async function onLogout() {
   padding: 0 16px;
   background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .page-title {
@@ -289,5 +308,12 @@ async function onLogout() {
   max-width: 1100px;
   margin: 0 auto;
   padding: 24px 20px 48px;
+  animation: fade-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-inner {
+    animation: none;
+  }
 }
 </style>

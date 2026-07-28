@@ -157,12 +157,13 @@ function onItemClick(chat: Chat) {
   font-size: 18px;
   border-radius: 10px;
   background: var(--brand-grad);
-  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.35);
+  box-shadow: 0 4px 12px var(--brand-glow);
 }
 
 .brand-name {
   font-size: 17px;
   font-weight: 700;
+  letter-spacing: 0.02em;
   background: var(--brand-grad);
   -webkit-background-clip: text;
   background-clip: text;
@@ -172,9 +173,13 @@ function onItemClick(chat: Chat) {
 .new-chat-btn {
   margin: 4px 14px 10px;
   padding: 10px;
-  border: 1px solid var(--brand-from);
+  border: 1px solid color-mix(in srgb, var(--brand-from) 45%, transparent);
   border-radius: 12px;
-  background: var(--bg-hover);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--brand-from) 10%, transparent),
+    color-mix(in srgb, var(--brand-to) 10%, transparent)
+  );
   color: var(--brand-from);
   font-size: 14px;
   font-weight: 600;
@@ -183,9 +188,13 @@ function onItemClick(chat: Chat) {
 }
 
 .new-chat-btn:hover {
-  background: var(--bg-active);
-  box-shadow: 0 3px 10px rgba(79, 110, 247, 0.25);
+  border-color: var(--brand-from);
+  box-shadow: 0 4px 14px var(--brand-glow);
   transform: translateY(-1px);
+}
+
+.new-chat-btn:active {
+  transform: translateY(0);
 }
 
 .new-chat-btn .plus {
@@ -200,11 +209,14 @@ function onItemClick(chat: Chat) {
 
 .chat-group-title {
   padding: 12px 10px 5px;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   color: var(--fg-muted);
 }
 
 .chat-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -220,6 +232,23 @@ function onItemClick(chat: Chat) {
 
 .chat-item.active {
   background: var(--bg-active);
+}
+
+/* 选中会话左侧的品牌色指示条 */
+.chat-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--brand-grad);
+}
+
+.chat-item.active .chat-title-text {
+  font-weight: 600;
 }
 
 .chat-text {

@@ -17,14 +17,15 @@ const SUGGESTIONS = [
 <template>
   <section class="empty-state">
     <div class="empty-inner">
-      <div class="empty-logo">🎓</div>
+      <div class="empty-logo pop-in">🎓</div>
       <h1 class="empty-title">AI 辅导员</h1>
       <p class="empty-sub">基于学校文档的本地 RAG 学业助手，随时解答你的疑问</p>
       <div class="suggestions">
         <button
-          v-for="s in SUGGESTIONS"
+          v-for="(s, i) in SUGGESTIONS"
           :key="s.title"
-          class="suggestion-card"
+          class="suggestion-card fade-up"
+          :style="{ animationDelay: `${0.08 + i * 0.07}s` }"
           type="button"
           @click="emit('ask', s.text)"
         >
@@ -44,6 +45,7 @@ const SUGGESTIONS = [
   place-items: center;
   padding: 24px;
   overflow-y: auto;
+  background: var(--bg-deco);
 }
 
 .empty-inner {
@@ -52,20 +54,23 @@ const SUGGESTIONS = [
 }
 
 .empty-logo {
-  width: 68px;
-  height: 68px;
+  width: 72px;
+  height: 72px;
   margin: 0 auto 14px;
   display: grid;
   place-items: center;
-  font-size: 34px;
-  border-radius: 20px;
+  font-size: 36px;
+  border-radius: 22px;
   background: var(--brand-grad);
-  box-shadow: 0 10px 28px rgba(79, 110, 247, 0.4);
+  box-shadow:
+    0 12px 30px var(--brand-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .empty-title {
   margin: 0 0 6px;
   font-size: 28px;
+  letter-spacing: 0.02em;
   background: var(--brand-grad);
   -webkit-background-clip: text;
   background-clip: text;
@@ -106,9 +111,11 @@ const SUGGESTIONS = [
 }
 
 .suggestion-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--brand-from);
-  box-shadow: var(--shadow-pop);
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--brand-from) 55%, transparent);
+  box-shadow:
+    0 8px 22px rgba(79, 110, 247, 0.14),
+    var(--shadow-soft);
 }
 
 .s-icon {

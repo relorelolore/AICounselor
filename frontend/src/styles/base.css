@@ -6,6 +6,7 @@
   --brand-from: #4f6ef7;
   --brand-to: #8b5cf6;
   --brand-grad: linear-gradient(135deg, var(--brand-from), var(--brand-to));
+  --brand-glow: rgba(79, 110, 247, 0.35);
 
   --bg: #f4f5fb;
   --bg-elev: #ffffff;
@@ -14,8 +15,17 @@
   --fg: #1f2430;
   --fg-muted: #7a8199;
   --border: #e6e8f2;
-  --shadow-soft: 0 2px 12px rgba(31, 36, 48, 0.06);
-  --shadow-pop: 0 8px 30px rgba(31, 36, 48, 0.12);
+  /* 分层阴影：近处接触阴影 + 远处环境阴影，比单层更柔和 */
+  --shadow-soft:
+    0 1px 2px rgba(31, 36, 48, 0.04),
+    0 4px 16px rgba(31, 36, 48, 0.06);
+  --shadow-pop:
+    0 2px 6px rgba(31, 36, 48, 0.06),
+    0 12px 32px rgba(31, 36, 48, 0.14);
+  /* 主区域装饰光斑（明 / 暗不同强度） */
+  --bg-deco:
+    radial-gradient(600px 320px at 85% -5%, rgba(79, 110, 247, 0.1), transparent 70%),
+    radial-gradient(520px 300px at 5% 105%, rgba(139, 92, 246, 0.09), transparent 70%);
 
   --bubble-user-bg: var(--brand-grad);
   --bubble-user-fg: #ffffff;
@@ -35,8 +45,15 @@ html.dark {
   --fg: #e8eaf2;
   --fg-muted: #8b90a5;
   --border: #2b2f3d;
-  --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-soft:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-pop:
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    0 12px 32px rgba(0, 0, 0, 0.5);
+  --bg-deco:
+    radial-gradient(600px 320px at 85% -5%, rgba(99, 120, 247, 0.14), transparent 70%),
+    radial-gradient(520px 300px at 5% 105%, rgba(139, 92, 246, 0.12), transparent 70%);
 
   --bubble-ai-bg: #232733;
   --bubble-ai-fg: var(--fg);
@@ -67,6 +84,56 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* 选中文字使用品牌色 */
+::selection {
+  background: rgba(79, 110, 247, 0.24);
+}
+
+/* 键盘导航焦点环（鼠标点击不触发） */
+:focus-visible {
+  outline: 2px solid var(--brand-from);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* 通用入场动画：上浮 + 淡入。组件内配合 animation-delay 做级联。 */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fade-up {
+  animation: fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pop-in {
+  animation: pop-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up,
+  .pop-in {
+    animation: none;
+  }
 }
 
 ::-webkit-scrollbar {

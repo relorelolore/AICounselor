@@ -117,15 +117,19 @@ defineExpose({ focus });
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: var(--shadow-soft);
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .composer-box:focus-within {
   border-color: var(--brand-from);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--brand-from) 16%, transparent),
+    var(--shadow-soft);
 }
 
 .composer-box.over {
   border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent);
 }
 
 textarea {
@@ -172,7 +176,7 @@ textarea {
 .send-btn {
   background: var(--brand-grad);
   color: #fff;
-  box-shadow: 0 3px 10px rgba(79, 110, 247, 0.35);
+  box-shadow: 0 3px 10px var(--brand-glow);
 }
 
 .send-btn:disabled {
@@ -183,6 +187,12 @@ textarea {
 
 .send-btn:not(:disabled):hover {
   filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px var(--brand-glow);
+}
+
+.send-btn:not(:disabled):active {
+  transform: translateY(0);
 }
 
 .stop-btn {

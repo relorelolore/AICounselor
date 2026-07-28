@@ -257,7 +257,7 @@ function confirmDelete(row: AdminAccount) {
       v-model:show="showAdd"
       preset="card"
       title="新增管理员"
-      class="modal-card"
+      :style="{ width: 'min(420px, 92vw)', borderRadius: '16px' }"
       :mask-closable="!addSaving"
     >
       <n-form @submit.prevent="submitAdd">
@@ -301,7 +301,7 @@ function confirmDelete(row: AdminAccount) {
       v-model:show="showEdit"
       preset="card"
       title="修改密码"
-      class="modal-card"
+      :style="{ width: 'min(420px, 92vw)', borderRadius: '16px' }"
       :mask-closable="!editSaving"
     >
       <n-form @submit.prevent="submitEdit">
@@ -360,10 +360,17 @@ function confirmDelete(row: AdminAccount) {
   margin: 0;
   font-size: 20px;
   font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .card {
+  border-radius: 14px;
   box-shadow: var(--shadow-soft);
+  transition: box-shadow 0.18s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-pop);
 }
 
 .self-mark {
@@ -375,10 +382,6 @@ function confirmDelete(row: AdminAccount) {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.modal-card {
-  width: min(440px, 92vw);
 }
 
 .modal-footer {

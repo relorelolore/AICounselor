@@ -251,10 +251,21 @@ async function runReindex() {
   margin: 4px 0 0;
   font-size: 22px;
   font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--brand-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .card {
+  border-radius: 14px;
   box-shadow: var(--shadow-soft);
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-pop);
 }
 
 .state-text {
@@ -279,7 +290,7 @@ async function runReindex() {
 .desc-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 10px 24px;
+  gap: 10px 16px;
 }
 
 .desc-item {
@@ -288,6 +299,14 @@ async function runReindex() {
   font-size: 13.5px;
   line-height: 1.6;
   min-width: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  transition: background 0.15s ease;
+}
+
+.desc-item:hover {
+  background: var(--bg-active);
 }
 
 .desc-label {
